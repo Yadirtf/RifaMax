@@ -52,7 +52,7 @@ export default function SettingsPanel({ raffle, publicUrl }: AdminProps) {
             <input value={form.organizerPhone} onChange={(e) => set("organizerPhone", e.target.value)} inputMode="tel" placeholder="3001234567" className={`num ${inputCls}`} />
           </Field>
           <Field label="Tu meta de ganancia (COP)" hint="Llena la alcancía: premios + esta meta.">
-            <input type="number" min={0} step={10000} value={form.goal} onChange={(e) => set("goal", Number(e.target.value))} className={`num ${inputCls}`} />
+            <input type="number" min={0} step={1} value={form.goal} onChange={(e) => set("goal", Number(e.target.value))} className={`num ${inputCls}`} />
           </Field>
         </div>
         <Field label="Tema" group>

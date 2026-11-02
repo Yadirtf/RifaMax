@@ -195,7 +195,7 @@ function PaymentSheet({ raffle, ticket, onClose, label }: { raffle: AdminProps["
                 </button>
               ))}
             </div>
-            <input type="number" min={1} max={owes} step={500} value={amount || ""} onChange={(e) => setAmount(Number(e.target.value))} placeholder={String(owes)} aria-label="Valor del abono" className={`num ${inputCls}`} />
+            <input type="number" min={1} max={owes} step={1} value={amount || ""} onChange={(e) => setAmount(Number(e.target.value))} placeholder={String(owes)} aria-label="Valor del abono" className={`num ${inputCls}`} />
           </Field>
           <Field label="Medio de pago" group>
             <Segmented

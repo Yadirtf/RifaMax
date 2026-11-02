@@ -131,10 +131,10 @@ function Wizard() {
                   />
                 </Field>
                 <Field label="Valor del número">
-                  <input type="number" min={1} step={1000} value={f.price} onChange={(e) => set("price", Number(e.target.value))} className={`num ${inputCls}`} />
+                  <input type="number" min={1} step={1} value={f.price} onChange={(e) => set("price", Number(e.target.value))} className={`num ${inputCls}`} />
                 </Field>
                 <Field label="Abono mínimo">
-                  <input type="number" min={1} step={1000} value={f.minDeposit} onChange={(e) => set("minDeposit", Number(e.target.value))} className={`num ${inputCls}`} />
+                  <input type="number" min={1} step={1} value={f.minDeposit} onChange={(e) => set("minDeposit", Number(e.target.value))} className={`num ${inputCls}`} />
                 </Field>
               </div>
               <div className="grid gap-5 sm:grid-cols-2">
@@ -214,7 +214,7 @@ function Wizard() {
                         </select>
                       </Field>
                       <Field label="Valor (COP)">
-                        <input type="number" min={0} step={1000} value={p.value} onChange={(e) => setPrize(i, { value: Number(e.target.value) })} className={`num ${inputCls}`} />
+                        <input type="number" min={0} step={1} value={p.value} onChange={(e) => setPrize(i, { value: Number(e.target.value) })} className={`num ${inputCls}`} />
                       </Field>
                       <Field label="Fecha">
                         <input type="date" value={p.drawDate} onChange={(e) => setPrize(i, { drawDate: e.target.value })} className={inputCls} />

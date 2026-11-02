@@ -109,3 +109,11 @@ body {
   html { scroll-behavior: auto; }
   .shimmer { animation: none; }
 }
+
+/* Texto con el degradado de la marca */
+.brand-text {
+  background: linear-gradient(100deg, #ff4f9a, #ff8a4d 55%, #ffd45c);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}

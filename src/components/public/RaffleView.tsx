@@ -1,5 +1,7 @@
 "use client";
 
+import { Logo, LogoMark } from "@/components/Logo";
+import { BRAND } from "@/lib/brand";
 import { motion } from "motion/react";
 import { Radio } from "lucide-react";
 import Link from "next/link";
@@ -59,8 +61,8 @@ export default function RaffleView({ view, theme, open }: Props) {
 
       <nav className="sticky top-0 z-40 border-b border-white/10 bg-[var(--bg)]/75 backdrop-blur-xl" aria-label="Secciones">
         <div className="mx-auto flex max-w-6xl items-center gap-1 overflow-x-auto px-3 py-2 [scrollbar-width:none]">
-          <Link href="/" className="mr-2 shrink-0 font-display text-lg font-black">
-            {theme.emoji}
+          <Link href="/" className="mr-2 shrink-0" aria-label={BRAND.name}>
+            <LogoMark size={34} />
           </Link>
           {NAV.map(([href, label]) => (
             <a key={href} href={href} className="shrink-0 rounded-full px-3.5 py-2 text-sm font-semibold text-[var(--ink)]/80 hover:bg-white/10 hover:text-[var(--ink)]">
@@ -160,7 +162,8 @@ export default function RaffleView({ view, theme, open }: Props) {
       </div>
 
       <footer className="border-t border-white/10 px-4 py-8 text-center text-xs text-[var(--ink)]/45">
-        RifaMax · Resultados verificables con la lotería oficial y drand.
+        <Logo size={28} className="justify-center text-sm text-[var(--ink)]/80" />
+        <p className="mt-3">Resultados verificables con la lotería oficial y drand.</p>
       </footer>
     </main>
   );

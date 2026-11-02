@@ -10,6 +10,7 @@ import { formatCOP, formatNumber, ticketState, whatsappLink } from "@/lib/raffle
 import type { Raffle, Ticket as TicketT } from "@/lib/types";
 import DrawsPanel from "./DrawsPanel";
 import SettingsPanel from "./SettingsPanel";
+import StoryCard, { type StoryState } from "./StoryCard";
 import TicketsPanel from "./TicketsPanel";
 
 export interface PrizeMeta {
@@ -38,6 +39,7 @@ type Tab = (typeof TABS)[number]["key"];
 
 export default function AdminRaffle(props: AdminProps) {
   const [tab, setTab] = useState<Tab>("resumen");
+  const [story, setStory] = useState<StoryState | null>(null);
   useEffect(() => {
     const h = window.location.hash.slice(1) as Tab;
     if (TABS.some((t) => t.key === h)) setTab(h);
@@ -65,7 +67,7 @@ export default function AdminRaffle(props: AdminProps) {
         ))}
       </div>
       <motion.div key={tab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
-        {tab === "resumen" && <Overview {...props} onGo={go} />}
+        {tab === "resumen" && <Overview {...props} onGo={go} story={story} onStory={setStory} />}
         {tab === "numeros" && <TicketsPanel {...props} />}
         {tab === "sorteos" && <DrawsPanel {...props} />}
         {tab === "ajustes" && <SettingsPanel {...props} />}
@@ -74,7 +76,15 @@ export default function AdminRaffle(props: AdminProps) {
   );
 }
 
-function Overview({ raffle, tickets, palette, onGo }: AdminProps & { onGo: (t: Tab) => void }) {
+function Overview({
+  raffle,
+  tickets,
+  palette,
+  publicUrl,
+  onGo,
+  story,
+  onStory,
+}: AdminProps & { onGo: (t: Tab) => void; story: StoryState | null; onStory: (s: StoryState | null) => void }) {
   const collected = tickets.reduce((s, t) => s + t.paidAmount, 0);
   const owed = tickets.reduce((s, t) => s + Math.max(0, raffle.price - t.paidAmount), 0);
   const prizes = raffle.prizes.reduce((s, p) => s + p.value, 0);
@@ -92,15 +102,18 @@ function Overview({ raffle, tickets, palette, onGo }: AdminProps & { onGo: (t: T
   const fmtTime = (iso: string) => new Intl.DateTimeFormat("es-CO", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "America/Bogota" }).format(new Date(iso));
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
-      <section className="glass relative overflow-hidden rounded-[28px] p-5">
-        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--accent)]">Alcancía</p>
-        <p className="num mt-1 font-display text-4xl font-black">{formatCOP(collected)}</p>
-        <p className="text-sm text-[var(--ink)]/65">
-          de {formatCOP(goal)} {raffle.goal ? "(premios + tu meta)" : "(todos los números)"} · {Math.round(progress * 100)}%
-        </p>
-        <Jar3D progress={progress} palette={palette} className="mx-auto h-72 w-full max-w-sm sm:h-80" />
-      </section>
+    <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
+      <div className="space-y-4">
+        <section className="glass relative overflow-hidden rounded-[28px] p-5">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--accent)]">Alcancía</p>
+          <p className="num mt-1 font-display text-4xl font-black">{formatCOP(collected)}</p>
+          <p className="text-sm text-[var(--ink)]/65">
+            de {formatCOP(goal)} {raffle.goal ? "(premios + tu meta)" : "(todos los números)"} · {Math.round(progress * 100)}%
+          </p>
+          <Jar3D progress={progress} palette={palette} className="mx-auto h-72 w-full max-w-sm sm:h-80" />
+        </section>
+        <StoryCard raffle={raffle} tickets={tickets} publicUrl={publicUrl} story={story} onStory={onStory} />
+      </div>
 
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

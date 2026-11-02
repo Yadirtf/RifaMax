@@ -1,0 +1,111 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #0b0d1c;
+  --bg2: #171b38;
+  --primary: #6c7bff;
+  --secondary: #22b8a8;
+  --accent: #ffcc4d;
+  --ink: #f4f5ff;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg2: var(--bg2);
+  --color-primary: var(--primary);
+  --color-secondary: var(--secondary);
+  --color-accent: var(--accent);
+  --color-ink: var(--ink);
+  --font-display: "Bricolage Grotesque Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-feature-settings: "cv11", "ss01";
+}
+
+/* Superficie temática con degradado y grano sutil. */
+.stage {
+  color: var(--ink);
+  background:
+    radial-gradient(1200px 600px at 80% -10%, color-mix(in oklab, var(--primary) 28%, transparent), transparent 60%),
+    radial-gradient(900px 500px at -10% 20%, color-mix(in oklab, var(--secondary) 22%, transparent), transparent 60%),
+    linear-gradient(180deg, var(--bg2), var(--bg) 55%);
+  min-height: 100dvh;
+  position: relative;
+  isolation: isolate;
+}
+
+.stage::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0.07;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+.glass {
+  background: linear-gradient(180deg, color-mix(in oklab, var(--ink) 9%, transparent), color-mix(in oklab, var(--ink) 4%, transparent));
+  border: 1px solid color-mix(in oklab, var(--ink) 12%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, var(--ink) 10%, transparent),
+    0 20px 40px -24px rgb(0 0 0 / 0.6);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.gold-text {
+  background: linear-gradient(180deg, color-mix(in oklab, var(--accent) 60%, white), var(--accent) 45%, color-mix(in oklab, var(--accent) 70%, #7a4b00));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.btn-gold {
+  background: linear-gradient(180deg, color-mix(in oklab, var(--accent) 75%, white), var(--accent) 50%, color-mix(in oklab, var(--accent) 80%, #8a5200));
+  color: #1d1300;
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 0.5) inset,
+    0 10px 24px -10px color-mix(in oklab, var(--accent) 80%, transparent);
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Admin: tema claro sobrio */
+.admin {
+  --a-bg: #f5f4f0;
+  --a-card: #ffffff;
+  --a-ink: #16140f;
+  --a-muted: #6b6559;
+  --a-line: #e7e3da;
+  background: var(--a-bg);
+  color: var(--a-ink);
+  min-height: 100dvh;
+}
+
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to { background-position: 200% 0; }
+}
+
+.shimmer {
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.25), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 2.2s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .shimmer { animation: none; }
+}

@@ -34,13 +34,13 @@ export function OgLogoMark({ size, rounded = true }: { size: number; rounded?: b
       }}
     >
       <svg width={size} height={size} viewBox="0 0 120 120" style={{ position: "absolute", left: 0, top: 0 }}>
-        <ellipse cx="60" cy="-6" rx="78" ry="34" fill="#fff" opacity="0.14" />
+        <ellipse cx="60" cy="-6" rx="78" ry="34" fill="#fff" fillOpacity="0.14" />
       </svg>
       <div style={{ position: "absolute", left: 0, top: 0, width: size, height: size, display: "flex", transform: "rotate(-8deg)" }}>
         <svg width={size} height={size} viewBox="0 0 120 120" style={{ position: "absolute", left: 0, top: 0 }}>
-          <path d={TICKET_PATH} fill="#000" opacity="0.18" transform="translate(2 4)" />
+          <path d={TICKET_PATH} fill="#000" fillOpacity="0.18" transform="translate(2 4)" />
           <path d={TICKET_PATH} fill={C.cream} />
-          <line x1="82" y1="39" x2="82" y2="81" stroke={C.b} strokeWidth="2" strokeDasharray="3 3.5" strokeLinecap="round" opacity="0.7" />
+          <line x1="82" y1="39" x2="82" y2="81" stroke={C.b} strokeWidth="2" strokeDasharray="3 3.5" strokeLinecap="round" strokeOpacity="0.7" />
           <path d={HEART_PATH} fill={C.a} />
         </svg>
         <div
@@ -66,7 +66,7 @@ export function OgLogoMark({ size, rounded = true }: { size: number; rounded?: b
         </div>
       </div>
       <svg width={size} height={size} viewBox="0 0 120 120" style={{ position: "absolute", left: 0, top: 0 }}>
-        <path d={SPARKLE_PATH} fill="#fff" opacity="0.95" />
+        <path d={SPARKLE_PATH} fill="#fff" fillOpacity="0.95" />
       </svg>
     </div>
   );
@@ -106,7 +106,7 @@ export function OgCard({ title, subtitle, chips, footer }: OgCardProps) {
       ].map(([x, y, s, col], i) => (
         <div
           key={i}
-          style={{ position: "absolute", left: x as number, top: y as number, width: s as number, height: s as number, borderRadius: 99, backgroundColor: col as string, opacity: 0.8 }}
+          style={{ position: "absolute", left: x as number, top: y as number, width: s as number, height: s as number, borderRadius: 99, backgroundColor: col as string }}
         />
       ))}
 
@@ -114,7 +114,7 @@ export function OgCard({ title, subtitle, chips, footer }: OgCardProps) {
         <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
           <OgLogoMark size={84} />
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <span style={{ fontSize: 22, fontWeight: 700, opacity: 0.75, letterSpacing: 4, textTransform: "uppercase" }}>Rifa de</span>
+            <span style={{ fontSize: 22, fontWeight: 700, color: "rgba(255,248,236,0.75)", letterSpacing: 4, textTransform: "uppercase" }}>Rifa de</span>
             <span
               style={{
                 fontSize: 40,
@@ -132,7 +132,7 @@ export function OgCard({ title, subtitle, chips, footer }: OgCardProps) {
 
         <div style={{ display: "flex", flexDirection: "column" }}>
           <div style={{ fontSize: title.length > 22 ? 64 : 80, fontWeight: 800, lineHeight: 0.98, letterSpacing: -2 }}>{title}</div>
-          <div style={{ marginTop: 18, fontSize: 28, fontWeight: 700, opacity: 0.8, lineHeight: 1.25 }}>{subtitle}</div>
+          <div style={{ marginTop: 18, fontSize: 28, fontWeight: 700, color: "rgba(255,248,236,0.8)", lineHeight: 1.25 }}>{subtitle}</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 28 }}>
             {chips.map((c, i) => (
               <div
@@ -154,7 +154,7 @@ export function OgCard({ title, subtitle, chips, footer }: OgCardProps) {
           </div>
         </div>
 
-        <div style={{ fontSize: 22, fontWeight: 700, opacity: 0.6 }}>{footer}</div>
+        <div style={{ fontSize: 22, fontWeight: 700, color: "rgba(255,248,236,0.6)" }}>{footer}</div>
       </div>
 
       <div style={{ position: "absolute", right: 70, top: 150, display: "flex", transform: "rotate(6deg)", boxShadow: `0 30px 80px ${C.a}88`, borderRadius: 80 }}>

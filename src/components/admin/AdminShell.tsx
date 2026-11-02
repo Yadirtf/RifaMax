@@ -1,5 +1,6 @@
 import { LogOut } from "lucide-react";
 import Link from "next/link";
+import { LogoMark } from "@/components/Logo";
 import { logout } from "@/app/admin/actions";
 import { getTheme, themeStyle } from "@/lib/themes";
 
@@ -9,8 +10,10 @@ export default function AdminShell({ children, theme = "navidad", title }: { chi
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[var(--bg)]/80 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
           <Link href="/admin" className="flex items-center gap-2 font-display text-lg font-black">
-            <span className="btn-gold flex size-8 items-center justify-center rounded-lg text-sm">R</span>
-            <span className="hidden sm:inline">RifaMax</span>
+            <LogoMark size={32} />
+            <span className="hidden text-base sm:inline">
+              Rifa de <span className="brand-text">Adrian y Tatiana</span>
+            </span>
           </Link>
           {title && <div className="min-w-0 flex-1 truncate font-display font-bold text-[var(--ink)]/85">{title}</div>}
           <form action={logout} className="ml-auto">

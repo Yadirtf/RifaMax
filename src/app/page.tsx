@@ -1,5 +1,6 @@
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
+import { Logo } from "@/components/Logo";
 import { listRaffles } from "@/lib/data";
 import { formatCOP, formatDate } from "@/lib/raffle";
 import { getTheme, themeStyle } from "@/lib/themes";
@@ -11,7 +12,7 @@ export default async function Home() {
   return (
     <main className="stage" style={themeStyle(getTheme("generico"))}>
       <div className="mx-auto max-w-4xl px-5 py-16 sm:py-24">
-        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--accent)]">RifaMax</p>
+        <Logo size={44} className="text-lg" />
         <h1 className="mt-2 font-display text-5xl font-extrabold tracking-tight sm:text-7xl">Rifas que dan ganas de jugar.</h1>
         <p className="mt-4 max-w-xl text-lg text-[var(--ink)]/75">
           Abona a tu ritmo, varias formas de ganar, lotería oficial y ruleta en vivo que tú mismo puedes verificar.

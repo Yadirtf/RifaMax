@@ -2,6 +2,7 @@
 
 import { KeyRound } from "lucide-react";
 import { useActionState } from "react";
+import { LogoMark } from "@/components/Logo";
 import { getTheme, themeStyle } from "@/lib/themes";
 import { login, type Result } from "../actions";
 
@@ -10,12 +11,10 @@ export default function LoginPage() {
   return (
     <main className="stage flex items-center justify-center p-5" style={themeStyle(getTheme("navidad"))}>
       <form action={action} className="glass w-full max-w-sm space-y-5 rounded-[28px] p-7">
-        <div className="btn-gold flex size-12 items-center justify-center rounded-2xl">
-          <KeyRound className="size-6" aria-hidden />
-        </div>
+        <LogoMark size={56} />
         <div>
-          <h1 className="font-display text-3xl font-extrabold">Panel RifaMax</h1>
-          <p className="mt-1 text-sm text-[var(--ink)]/65">Solo para quienes organizan.</p>
+          <h1 className="font-display text-3xl font-extrabold"><span className="inline-flex items-center gap-2"><KeyRound className="size-6 text-[var(--accent)]" aria-hidden /> Panel</span></h1>
+          <p className="mt-1 text-sm text-[var(--ink)]/65">Rifa de Adrian y Tatiana · solo para quienes organizan.</p>
         </div>
         <label className="block">
           <span className="text-sm font-medium">Clave</span>

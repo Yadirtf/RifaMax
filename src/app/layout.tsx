@@ -1,11 +1,15 @@
 import "@fontsource-variable/bricolage-grotesque";
 import "@fontsource-variable/inter";
 import type { Metadata, Viewport } from "next";
+import { BRAND } from "@/lib/brand";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "RifaMax",
-  description: "Rifas interactivas: abona a tu ritmo, varios premios, lotería oficial y ruleta en vivo verificable.",
+  title: { default: BRAND.name, template: `%s · ${BRAND.name}` },
+  description: "Abona a tu ritmo y gana con la lotería oficial o la ruleta en vivo verificable.",
+  applicationName: BRAND.name,
+  openGraph: { siteName: BRAND.name, locale: "es_CO", type: "website" },
+  twitter: { card: "summary_large_image" },
 };
 
 export const viewport: Viewport = {

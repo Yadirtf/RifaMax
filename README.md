@@ -1,6 +1,6 @@
 # RifaMax 🎟️
 
-Rifas interactivas y configurables: varios premios con distintas formas de ganar, pago por abonos, ruletas en vivo verificables y temas por temporada (Navidad, Amor y Amistad, Día de la Madre, Siembra).
+Rifas interactivas y configurables: varios premios con distintas formas de ganar, pago por abonos, ruletas en vivo con azar público verificable, resultados de lotería oficiales y temas por temporada en 3D (Navidad, Amor y Amistad, Día de la Madre, Siembra).
 
 La primera rifa configurada es la **Rifa Navideña 2026**: 100 números de $20.000, cinco premios (Lotería de Medellín, dos ruletas, reintegro por número invertido y bono madrugador).
 
@@ -11,26 +11,31 @@ La primera rifa configurada es la **Rifa Navideña 2026**: 100 números de $20.0
 - Tablero con todos los números: libre, apartado, abonando o pagado.
 - Aparta un número con nombre y WhatsApp, y paga por abonos.
 - Ve los premios, cómo se gana cada uno y los resultados en vivo (se actualiza solo).
-- Puede repetir el giro de cada ruleta y verificar el resultado desde su navegador.
+- Ve la ruleta girar en vivo, la repite cuando quiera y verifica el resultado con drand desde su navegador.
+- Consulta sus números y saldo con su WhatsApp.
 
 **Para quien organiza** (`/admin`)
 
 - Crear rifas con cualquier cantidad de premios, cada uno con su método:
   - **Lotería**: últimas cifras de una lotería oficial.
-  - **Ruleta**: ruleta verificable entre los números pagados.
+  - **Ruleta**: ruleta en vivo con drand entre los números pagados.
   - **Número invertido**: el invertido del ganador de otro premio (37 → 73).
 - Reglas por premio: solo pagados hasta cierta fecha (bono madrugador), excluir ganadores de otras ruletas y qué hacer si el número no está pagado (ruleta entre pagados o desierto).
 - Registrar abonos (Nequi, Daviplata, efectivo, transferencia), asignar y liberar números.
 - Recordatorios por WhatsApp con el saldo de cada jugador ya escrito.
 - Ruleta animada para girar en vivo compartiendo pantalla.
 
-## Ruleta verificable
+## Sorteos que cualquiera puede comprobar
 
-1. Al preparar la ruleta se genera una semilla secreta y se publica su hash SHA-256.
-2. Al girar se revela la semilla. El ganador es `SHA-256(semilla + "|" + elegibles ordenados separados por coma)` módulo la cantidad de elegibles.
-3. Como el hash se publicó antes, nadie puede cambiar la semilla para escoger ganador. Una ruleta ya girada no se puede repetir desde el panel.
+**Lotería (premio mayor).** Ninguna lotería colombiana ofrece una API pública, así que RifaMax lee la página oficial de resultados de la [Lotería de Medellín](https://loteriademedellin.com.co/resultados/). Quien organiza busca el resultado del día, lo revisa y lo confirma; el servidor vuelve a leer la página oficial antes de guardarlo. Si la página no responde, se digita a mano. Al lado del resultado siempre está el enlace a la página oficial para que el jugador compare.
 
-La lógica está en [`src/lib/raffle.ts`](src/lib/raffle.ts) y tiene pruebas en `src/lib/raffle.test.ts`.
+**Ruletas.** Usan [drand](https://drand.love) (red *quicknet* de la League of Entropy), un número aleatorio público que se publica cada 3 segundos y que nadie puede predecir ni alterar, ni siquiera quien organiza:
+
+1. Al programar la ruleta quedan fijos los números que participan (pagados a la fecha de corte) y una ronda futura de drand.
+2. Cuando llega esa ronda, el ganador es `aleatorio de drand mod cantidad de participantes`, sobre la lista ordenada.
+3. El jugador puede verificarlo desde su navegador: la página consulta drand directamente, sin pasar por nuestro servidor. También puede abrir el enlace de la ronda en `api.drand.sh`.
+
+La lógica está en [`src/lib/drand.ts`](src/lib/drand.ts), [`src/lib/lotteries.ts`](src/lib/lotteries.ts) y [`src/lib/draws.ts`](src/lib/draws.ts), con pruebas en `src/lib/*.test.ts`.
 
 ## Desarrollo local
 
@@ -38,22 +43,26 @@ Requiere Node.js 20 o superior.
 
 ```bash
 npm install
-cp .env.example .env.local   # cambia ADMIN_PASSWORD
-npm run db:setup             # crea la base SQLite y la Rifa Navideña 2026
 npm run dev
 ```
+
+Sin `MONGODB_URI` usa una base en memoria con la Rifa Navideña 2026 ya cargada (se borra al reiniciar). Para ver la rifa con movimiento: `RIFAMAX_DEMO_TICKETS=1 npm run dev`.
 
 - Tablero: http://localhost:3000/rifa/navidad-2026
 - Panel: http://localhost:3000/admin (clave `admin` si no defines `ADMIN_PASSWORD` en desarrollo)
 
-Otros comandos: `npm test`, `npm run lint`, `npm run build`, `npm run db:generate` (tras cambiar `src/db/schema.ts`).
+Otros comandos: `npm test`, `npm run lint`, `npm run build`.
 
-## Publicar gratis (Vercel + Turso)
+## Publicar gratis (Vercel + MongoDB Atlas)
 
-1. Crea una base en [Turso](https://turso.tech) y copia su URL (`libsql://...`) y token.
-2. Desde tu equipo, con esas variables definidas, ejecuta `npm run db:setup`.
-3. Importa el repositorio en [Vercel](https://vercel.com) y define `ADMIN_PASSWORD`, `SESSION_SECRET`, `DATABASE_URL` y `DATABASE_AUTH_TOKEN`.
-4. En el panel, abre la rifa y llena "Datos de pago y descripción" (Nequi y WhatsApp de quien organiza).
+1. **Base de datos.** Crea un clúster gratis **M0** en [MongoDB Atlas](https://www.mongodb.com/cloud/atlas/register). En *Database Access* crea un usuario; en *Network Access* permite `0.0.0.0/0` (Vercel no tiene IP fija). Copia la cadena `mongodb+srv://...`.
+2. **Rifa inicial.** Desde tu equipo: `MONGODB_URI="mongodb+srv://..." npm run db:seed`. Crea la Rifa Navideña 2026 y los índices. (También puedes crear rifas desde el panel.)
+3. **Vercel.** Importa el repositorio en [Vercel](https://vercel.com/new) y define estas variables:
+   - `MONGODB_URI`: la cadena de Atlas.
+   - `ADMIN_PASSWORD`: la clave del panel.
+   - `SESSION_SECRET`: una frase larga al azar.
+   - `MONGODB_DB` (opcional, por defecto `rifamax`).
+4. En el panel, abre la rifa y en **Ajustes** llena los datos de pago y el WhatsApp de quien organiza.
 
 ## Estructura
 
@@ -62,15 +71,20 @@ src/
   app/
     rifa/[slug]/        tablero público
     admin/              panel (login, rifas, abonos, sorteos)
-    actions.ts          apartar número (público)
+    actions.ts          apartar número y "mis números"
     admin/actions.ts    acciones del panel
-  components/           tablero, ruleta, premios, panel
-  db/                   esquema Drizzle, migraciones y semilla
+  components/
+    three/              escenas 3D (ruleta, balotas, alcancía, figuras del tema)
+    public/             tablero, premios, reglas
+    admin/              panel
   lib/
-    raffle.ts           reglas del juego y ruleta verificable
-    draws.ts            sorteos contra la base de datos
+    repo/               MongoDB y base en memoria (misma interfaz)
+    drand.ts            azar público verificable
+    lotteries.ts        lectura de resultados oficiales
+    draws.ts            reglas de cada sorteo
+    raffle.ts           reglas del juego
     themes.ts           temas por temporada
-drizzle/                migraciones SQL
+scripts/seed.ts         crea la rifa inicial en MongoDB
 ```
 
 ## Aviso legal

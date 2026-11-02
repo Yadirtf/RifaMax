@@ -40,6 +40,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# base de datos local
-/data/*.db*
+# datos locales
+/data/
 !.env.example

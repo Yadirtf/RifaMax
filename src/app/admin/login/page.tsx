@@ -1,21 +1,40 @@
 "use client";
 
+import { KeyRound } from "lucide-react";
 import { useActionState } from "react";
-import { login, type ActionState } from "../actions";
+import { getTheme, themeStyle } from "@/lib/themes";
+import { login, type Result } from "../actions";
 
 export default function LoginPage() {
-  const [state, action, pending] = useActionState<ActionState | null, FormData>(login, null);
+  const [state, action, pending] = useActionState<Result | null, FormData>(login, null);
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-100 p-4">
-      <form action={action} className="w-full max-w-xs space-y-3 rounded-2xl bg-white p-6 shadow">
-        <h1 className="text-xl font-bold">RifaMax · Administración</h1>
-        <label className="block text-sm">
-          Clave
-          <input name="password" type="password" required autoFocus className="mt-1 w-full rounded-lg border px-3 py-2" />
+    <main className="stage flex items-center justify-center p-5" style={themeStyle(getTheme("navidad"))}>
+      <form action={action} className="glass w-full max-w-sm space-y-5 rounded-[28px] p-7">
+        <div className="btn-gold flex size-12 items-center justify-center rounded-2xl">
+          <KeyRound className="size-6" aria-hidden />
+        </div>
+        <div>
+          <h1 className="font-display text-3xl font-extrabold">Panel RifaMax</h1>
+          <p className="mt-1 text-sm text-[var(--ink)]/65">Solo para quienes organizan.</p>
+        </div>
+        <label className="block">
+          <span className="text-sm font-medium">Clave</span>
+          <input
+            name="password"
+            type="password"
+            required
+            autoFocus
+            autoComplete="current-password"
+            className="mt-1.5 w-full rounded-xl bg-white/[0.08] px-4 py-3 outline-none ring-1 ring-white/15 focus:ring-2 focus:ring-[var(--accent)]"
+          />
         </label>
-        {state && !state.ok && <p className="text-sm text-red-600">{state.message}</p>}
-        <button disabled={pending} className="w-full rounded-lg bg-slate-900 py-2 font-semibold text-white disabled:opacity-60">
-          Entrar
+        {state && !state.ok && (
+          <p role="alert" className="text-sm text-red-200">
+            {state.message}
+          </p>
+        )}
+        <button disabled={pending} className="btn-gold w-full rounded-xl py-3.5 font-display text-lg font-bold disabled:opacity-60">
+          {pending ? "Entrando…" : "Entrar"}
         </button>
       </form>
     </main>

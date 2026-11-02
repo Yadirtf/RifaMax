@@ -1,17 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  colombiaDate,
-  eligibleNumbers,
-  formatNumber,
-  generateSeed,
-  isEligible,
-  lotteryNumber,
-  pickWinner,
-  reverseNumber,
-  sha256Hex,
-  ticketState,
-  verifyDraw,
-} from "./raffle";
+import { colombiaDate, eligibleNumbers, formatNumber, isEligible, lotteryNumber, reverseNumber, ticketState } from "./raffle";
 
 describe("números", () => {
   it("formatea con ceros a la izquierda según la cantidad", () => {
@@ -45,7 +33,6 @@ describe("estado y elegibilidad", () => {
   });
 
   it("usa hora de Colombia para la fecha límite", () => {
-    // 15 dic 23:30 en Colombia = 16 dic 04:30 UTC
     expect(colombiaDate("2026-12-16T04:30:00Z")).toBe("2026-12-15");
     const t = { number: 3, paidAmount: price, paidInFullAt: "2026-12-16T04:30:00Z" };
     expect(isEligible(t, price, "2026-12-15")).toBe(true);
@@ -61,38 +48,5 @@ describe("estado y elegibilidad", () => {
     ];
     expect(eligibleNumbers(tickets, price, "2026-11-30")).toEqual([2, 9]);
     expect(eligibleNumbers(tickets, price, "2026-12-15", [9])).toEqual([2, 7]);
-  });
-});
-
-describe("ruleta verificable", () => {
-  it("es determinista y verificable", async () => {
-    const seed = generateSeed();
-    const hash = await sha256Hex(seed);
-    const eligible = [42, 3, 17, 88];
-    const a = await pickWinner(seed, eligible);
-    const b = await pickWinner(seed, [...eligible].reverse());
-    expect(a.number).toBe(b.number);
-    expect(eligible).toContain(a.number);
-    expect(await verifyDraw(seed, hash, eligible, a.number)).toBe(true);
-    const other = eligible.find((n) => n !== a.number)!;
-    expect(await verifyDraw(seed, hash, eligible, other)).toBe(false);
-    expect(await verifyDraw("otra", hash, eligible, a.number)).toBe(false);
-  });
-
-  it("reparte de forma aproximadamente uniforme", async () => {
-    const eligible = [1, 2, 3, 4];
-    const counts = new Map<number, number>();
-    for (let i = 0; i < 2000; i++) {
-      const { number } = await pickWinner(`s${i}`, eligible);
-      counts.set(number, (counts.get(number) ?? 0) + 1);
-    }
-    for (const n of eligible) {
-      expect(counts.get(n)).toBeGreaterThan(400);
-      expect(counts.get(n)).toBeLessThan(600);
-    }
-  });
-
-  it("falla sin elegibles", async () => {
-    await expect(pickWinner("x", [])).rejects.toThrow();
   });
 });

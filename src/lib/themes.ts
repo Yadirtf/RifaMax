@@ -1,17 +1,22 @@
+import type { CSSProperties } from "react";
+
+export type Shape = "gift" | "ornament" | "star" | "heart" | "flower" | "leaf" | "coin" | "ticket";
+
 /** Temas por temporada. Agregar uno nuevo es agregar una entrada aquí. */
 export interface Theme {
   key: string;
   label: string;
   emoji: string;
   tagline: string;
-  /** Colores: fondo, superficie, primario, secundario, acento. */
+  /** Fondo profundo, fondo secundario (degradado), color principal, secundario, acento (dorado) y texto. */
   bg: string;
-  surface: string;
+  bg2: string;
   primary: string;
   secondary: string;
   accent: string;
-  /** Emojis que caen como decoración. */
-  decorations: string[];
+  ink: string;
+  /** Figuras 3D que flotan en la portada. */
+  shapes: Shape[];
 }
 
 export const themes: Record<string, Theme> = {
@@ -19,61 +24,66 @@ export const themes: Record<string, Theme> = {
     key: "navidad",
     label: "Navidad",
     emoji: "🎄",
-    tagline: "Juega, abona a tu ritmo y gana en Navidad",
-    bg: "#0f2e1f",
-    surface: "#173d2a",
-    primary: "#c8102e",
-    secondary: "#1f7a4d",
-    accent: "#f5c542",
-    decorations: ["❄️", "⭐", "🎁", "❄️"],
+    tagline: "Abona a tu ritmo, gira la suerte y gana esta Navidad",
+    bg: "#07150f",
+    bg2: "#0f2a1e",
+    primary: "#e23a4f",
+    secondary: "#2fa36f",
+    accent: "#f4c95d",
+    ink: "#fff7e8",
+    shapes: ["gift", "ornament", "star", "ornament", "gift", "coin"],
   },
   "amor-amistad": {
     key: "amor-amistad",
     label: "Amor y Amistad",
     emoji: "💛",
     tagline: "Juega con tus amigos y gana en septiembre",
-    bg: "#3b0d2a",
-    surface: "#521539",
-    primary: "#e63972",
-    secondary: "#a12a8f",
+    bg: "#1a0714",
+    bg2: "#3a0f2c",
+    primary: "#ff4f8b",
+    secondary: "#b14fd1",
     accent: "#ffd166",
-    decorations: ["💛", "💌", "✨"],
+    ink: "#fff2f7",
+    shapes: ["heart", "gift", "heart", "star", "coin"],
   },
   madres: {
     key: "madres",
     label: "Día de la Madre",
     emoji: "🌷",
-    tagline: "Un regalo para mamá puede salir de aquí",
-    bg: "#2e1a3d",
-    surface: "#432657",
-    primary: "#d6589f",
-    secondary: "#7c4dbd",
+    tagline: "El regalo para mamá puede salir de aquí",
+    bg: "#160c22",
+    bg2: "#2c1842",
+    primary: "#e05aa8",
+    secondary: "#8a5cf0",
     accent: "#ffe08a",
-    decorations: ["🌷", "🌸", "💐"],
+    ink: "#fbf3ff",
+    shapes: ["flower", "heart", "gift", "flower", "coin"],
   },
   siembra: {
     key: "siembra",
     label: "Siembra",
     emoji: "🌱",
     tagline: "Siembra un número y cosecha un premio",
-    bg: "#1f2a12",
-    surface: "#2f3d1c",
-    primary: "#7cb342",
-    secondary: "#8d6e3f",
-    accent: "#ffca28",
-    decorations: ["🌱", "🌻", "☀️"],
+    bg: "#0d1508",
+    bg2: "#1e2c12",
+    primary: "#8cc63f",
+    secondary: "#c08a3e",
+    accent: "#ffd23f",
+    ink: "#f8fbef",
+    shapes: ["leaf", "flower", "coin", "leaf", "star"],
   },
   generico: {
     key: "generico",
     label: "General",
     emoji: "🎟️",
     tagline: "Más de una forma de ganar",
-    bg: "#14172b",
-    surface: "#1e2340",
-    primary: "#5b6cff",
-    secondary: "#2bb3a3",
+    bg: "#0b0d1c",
+    bg2: "#171b38",
+    primary: "#6c7bff",
+    secondary: "#22b8a8",
     accent: "#ffcc4d",
-    decorations: ["✨", "🎟️", "⭐"],
+    ink: "#f4f5ff",
+    shapes: ["ticket", "coin", "star", "ticket", "coin"],
   },
 };
 
@@ -81,12 +91,13 @@ export function getTheme(key: string): Theme {
   return themes[key] ?? themes.generico;
 }
 
-export function themeStyle(theme: Theme): React.CSSProperties {
+export function themeStyle(t: Theme): CSSProperties {
   return {
-    "--bg": theme.bg,
-    "--surface": theme.surface,
-    "--primary": theme.primary,
-    "--secondary": theme.secondary,
-    "--accent": theme.accent,
-  } as React.CSSProperties;
+    "--bg": t.bg,
+    "--bg2": t.bg2,
+    "--primary": t.primary,
+    "--secondary": t.secondary,
+    "--accent": t.accent,
+    "--ink": t.ink,
+  } as CSSProperties;
 }

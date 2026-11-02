@@ -1,7 +1,6 @@
 /**
  * Reglas del juego, sin dependencias de base de datos ni de React.
- * Funciona igual en el servidor y en el navegador (usa Web Crypto),
- * para que cualquier jugador pueda verificar una ruleta.
+ * Funciona igual en el servidor y en el navegador (usa Web Crypto).
  */
 
 export type TicketState = "free" | "reserved" | "partial" | "paid";
@@ -71,53 +70,12 @@ export function eligibleNumbers(
     .sort((a, b) => a - b);
 }
 
-// ---------------------------------------------------------------------------
-// Ruleta verificable (compromiso y revelación)
-//
-// 1. Antes de girar se genera una semilla secreta y se publica su hash SHA-256.
-// 2. Al girar se revela la semilla. El ganador es:
-//      SHA-256(semilla + "|" + números elegibles ordenados y separados por coma)
-//      interpretado como entero, módulo la cantidad de elegibles.
-// Como el hash se publicó antes, nadie puede cambiar la semilla para elegir
-// ganador, y cualquiera puede repetir el cálculo.
-// ---------------------------------------------------------------------------
-
 export async function sha256Hex(text: string): Promise<string> {
   const data = new TextEncoder().encode(text);
   const hash = await globalThis.crypto.subtle.digest("SHA-256", data);
   return Array.from(new Uint8Array(hash))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
-}
-
-export function generateSeed(): string {
-  const bytes = new Uint8Array(16);
-  globalThis.crypto.getRandomValues(bytes);
-  return Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-export async function pickWinner(
-  seed: string,
-  eligible: number[],
-): Promise<{ index: number; number: number; hash: string }> {
-  if (eligible.length === 0) throw new Error("No hay números elegibles");
-  const sorted = [...eligible].sort((a, b) => a - b);
-  const hash = await sha256Hex(`${seed}|${sorted.join(",")}`);
-  const index = Number(BigInt(`0x${hash}`) % BigInt(sorted.length));
-  return { index, number: sorted[index], hash };
-}
-
-export async function verifyDraw(
-  seed: string,
-  seedHash: string,
-  eligible: number[],
-  winningNumber: number,
-): Promise<boolean> {
-  if ((await sha256Hex(seed)) !== seedHash) return false;
-  const { number } = await pickWinner(seed, eligible);
-  return number === winningNumber;
 }
 
 // ---------------------------------------------------------------------------

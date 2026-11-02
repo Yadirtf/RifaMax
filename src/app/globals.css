@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #14172b;
+  --surface: #1e2340;
+  --primary: #5b6cff;
+  --secondary: #2bb3a3;
+  --accent: #ffcc4d;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-primary: var(--primary);
+  --color-secondary: var(--secondary);
+  --color-accent: var(--accent);
+}
+
+body {
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.themed {
+  background: var(--bg);
+  color: #fff;
+  min-height: 100vh;
+}
+
+@keyframes fall {
+  0% { transform: translateY(-10vh) rotate(0deg); opacity: 0; }
+  10% { opacity: 0.9; }
+  100% { transform: translateY(110vh) rotate(360deg); opacity: 0; }
+}
+
+.decoration {
+  position: fixed;
+  top: 0;
+  pointer-events: none;
+  animation: fall linear infinite;
+  z-index: 0;
+}
+
+@keyframes pop {
+  0% { transform: scale(0.6); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+.pop { animation: pop 0.6s ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .decoration { display: none; }
+  .pop { animation: none; }
+}

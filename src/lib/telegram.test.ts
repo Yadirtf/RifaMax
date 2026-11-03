@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { escapeHtml, findStartChat } from "./telegram";
+import { addChat, escapeHtml, findStartChat, readChats } from "./telegram";
 
 describe("conexión con Telegram", () => {
   const updates = [
@@ -13,5 +13,13 @@ describe("conexión con Telegram", () => {
   });
   it("escapa el nombre del jugador en el mensaje", () => {
     expect(escapeHtml("<b>Ana & Co</b>")).toBe("&lt;b&gt;Ana &amp; Co&lt;/b&gt;");
+  });
+  it("guarda varias personas y lee el formato anterior", () => {
+    const yadir = { chatId: 42, name: "Yadir" };
+    expect(readChats(yadir)).toEqual([yadir]);
+    expect(readChats(null)).toEqual([]);
+    const two = addChat([yadir], { chatId: 7, name: "Tatiana" });
+    expect(two.map((c) => c.chatId)).toEqual([42, 7]);
+    expect(addChat(two, { chatId: 42, name: "Yadir T" })).toEqual([{ chatId: 42, name: "Yadir T" }, { chatId: 7, name: "Tatiana" }]);
   });
 });

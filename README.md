@@ -64,7 +64,7 @@ Otros comandos: `npm test`, `npm run lint`, `npm run build`.
    - `ADMIN_PASSWORD`: la clave del panel.
    - `SESSION_SECRET`: una frase larga al azar.
    - `MONGODB_DB` (opcional, por defecto `rifamax`).
-   - `TELEGRAM_BOT_TOKEN` (opcional): para recibir un aviso en Telegram cada vez que alguien aparta. Créalo con [@BotFather](https://t.me/BotFather) y conecta tu chat en **Ajustes** del panel.
+   - `TELEGRAM_BOT_TOKEN` (opcional): para recibir un aviso en Telegram cada vez que alguien aparta. Créalo con [@BotFather](https://t.me/BotFather) y conecta tu chat en **Ajustes** del panel. Con «Agregar» puedes sumar hasta 5 personas (por ejemplo, tu pareja) enviándoles el enlace por WhatsApp.
 4. En el panel, abre la rifa y en **Ajustes** llena los datos de pago y el WhatsApp de quien organiza.
 
 ## Estructura

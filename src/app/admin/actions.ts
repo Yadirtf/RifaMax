@@ -6,7 +6,7 @@ import { randomBytes } from "node:crypto";
 import { logEvent } from "@/lib/activity";
 import { checkPassword, endSession, requireAdmin, startSession } from "@/lib/auth";
 import { cleanPhone } from "@/lib/hold";
-import { botUsername, findChatByCode, sendTelegram, TELEGRAM_SETTING, telegramToken, type TelegramChat } from "@/lib/telegram";
+import { addChat, botUsername, findChatByCode, MAX_TELEGRAM_CHATS, readChats, sendTelegram, TELEGRAM_SETTING, telegramToken, type TelegramChat } from "@/lib/telegram";
 import { getBundle, type RaffleBundle } from "@/lib/data";
 import { applyLottery, applyReverse, resetDraw, scheduleRoulette } from "@/lib/draws";
 import { fetchOfficialResult, LOTTERIES, lotteryInfo, type OfficialResult } from "@/lib/lotteries";
@@ -150,18 +150,21 @@ export async function unblockPhone(input: { raffleId: string; phone: string }) {
 
 export interface TelegramStatus {
   configured: boolean;
-  chat: TelegramChat | null;
+  chats: TelegramChat[];
 }
+
+const loadChats = async () => readChats(await getRepo().getSetting<unknown>(TELEGRAM_SETTING).catch(() => null));
 
 export async function telegramStatus(): Promise<TelegramStatus> {
   await requireAdmin();
-  return { configured: !!telegramToken(), chat: await getRepo().getSetting<TelegramChat>(TELEGRAM_SETTING).catch(() => null) };
+  return { configured: !!telegramToken(), chats: await loadChats() };
 }
 
-/** Paso 1: enlace al bot con un código de un solo uso. */
+/** Paso 1: enlace al bot con un código de un solo uso. Sirve para ti o para enviárselo a otra persona. */
 export async function telegramConnectStart(): Promise<Result & { link?: string; code?: string }> {
   await requireAdmin();
   try {
+    if ((await loadChats()).length >= MAX_TELEGRAM_CHATS) return fail(`Ya hay ${MAX_TELEGRAM_CHATS} personas conectadas. Quita una para agregar otra.`);
     const code = randomBytes(6).toString("hex");
     const user = await botUsername();
     return { ok: true, message: "", link: `https://t.me/${user}?start=${code}`, code };
@@ -176,8 +179,10 @@ export async function telegramConnectFinish(input: { code: string }): Promise<Re
   try {
     if (!/^[0-9a-f]{12}$/.test(input.code)) return fail("Código inválido. Empieza de nuevo.");
     const chat = await findChatByCode(input.code);
-    if (!chat) return fail("Aún no vemos tu mensaje. En Telegram toca Iniciar y vuelve a intentarlo.");
-    await getRepo().setSetting(TELEGRAM_SETTING, chat);
+    if (!chat) return fail("Aún no vemos el mensaje. En Telegram toca Iniciar y vuelve a intentarlo.");
+    const chats = await loadChats();
+    if (!chats.some((c) => c.chatId === chat.chatId) && chats.length >= MAX_TELEGRAM_CHATS) return fail(`Ya hay ${MAX_TELEGRAM_CHATS} personas conectadas.`);
+    await getRepo().setSetting(TELEGRAM_SETTING, addChat(chats, chat));
     await sendTelegram(chat.chatId, "✅ Listo. Aquí te avisaremos cuando alguien aparte un número.");
     return { ok: true, message: `Conectado con ${chat.name}.` };
   } catch (e) {
@@ -187,15 +192,22 @@ export async function telegramConnectFinish(input: { code: string }): Promise<Re
 
 export async function telegramTest(): Promise<Result> {
   await requireAdmin();
-  const chat = await getRepo().getSetting<TelegramChat>(TELEGRAM_SETTING);
-  if (!chat) return fail("Primero conecta Telegram.");
-  return (await sendTelegram(chat.chatId, "🔔 Prueba de RifaMax: los avisos funcionan.")) ? { ok: true, message: "Te enviamos un mensaje de prueba." } : fail("Telegram no respondió. Revisa el token.");
+  const chats = await loadChats();
+  if (!chats.length) return fail("Primero conecta Telegram.");
+  const sent = await Promise.all(chats.map((c) => sendTelegram(c.chatId, "🔔 Prueba de RifaMax: los avisos funcionan.")));
+  const ok = sent.filter(Boolean).length;
+  if (!ok) return fail("Telegram no respondió. Revisa el token.");
+  if (ok < chats.length) return fail(`Llegó a ${ok} de ${chats.length}. Quien no lo recibió debe abrir el bot y tocar Iniciar otra vez.`);
+  return { ok: true, message: chats.length > 1 ? `Enviamos la prueba a las ${chats.length} personas.` : "Te enviamos un mensaje de prueba." };
 }
 
-export async function telegramDisconnect(): Promise<Result> {
+/** Quita a una persona de los avisos (o a todas si no se indica). */
+export async function telegramDisconnect(input?: { chatId?: number }): Promise<Result> {
   await requireAdmin();
-  await getRepo().setSetting(TELEGRAM_SETTING, null);
-  return { ok: true, message: "Avisos desactivados." };
+  const chats = await loadChats();
+  const rest = typeof input?.chatId === "number" ? chats.filter((c) => c.chatId !== input.chatId) : [];
+  await getRepo().setSetting(TELEGRAM_SETTING, rest.length ? rest : null);
+  return { ok: true, message: rest.length ? "Ya no le llegarán avisos a esa persona." : "Avisos desactivados." };
 }
 
 // --- Rifas -----------------------------------------------------------------

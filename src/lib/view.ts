@@ -19,7 +19,8 @@ export interface PublicPrize extends Omit<Prize, "draw"> {
 }
 
 export interface PublicView {
-  raffle: Omit<Raffle, "prizes">;
+  /** Sin datos privados del panel (teléfonos bloqueados). */
+  raffle: Omit<Raffle, "prizes" | "blockedPhones">;
   cells: PublicCell[];
   prizes: PublicPrize[];
   stats: { free: number; reserved: number; partial: number; paid: number; taken: number; prizesTotal: number };
@@ -40,7 +41,8 @@ export function toPublicView({ raffle, tickets }: RaffleBundle): PublicView {
     return { n, label: formatNumber(n, raffle.numberCount), state: ticketState(t, raffle.price), owner: t ? firstName(t.player.name) : undefined };
   });
   const count = (s: TicketState) => cells.filter((c) => c.state === s).length;
-  const { prizes, ...rest } = raffle;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { prizes, blockedPhones, ...rest } = raffle;
   return {
     raffle: rest,
     cells,

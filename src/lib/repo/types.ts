@@ -1,7 +1,7 @@
-import type { Draw, NewRaffle, Payment, Raffle, Ticket } from "../types";
+import type { Draw, NewRaffle, Payment, Raffle, RaffleEvent, Ticket } from "../types";
 
 export type RaffleInfoPatch = Partial<
-  Pick<Raffle, "name" | "description" | "paymentInfo" | "organizerPhone" | "status" | "goal" | "theme">
+  Pick<Raffle, "name" | "description" | "paymentInfo" | "organizerPhone" | "status" | "goal" | "theme" | "holdHours" | "blockedPhones">
 >;
 
 /**
@@ -23,11 +23,31 @@ export interface Repo {
   listTickets(raffleId: string): Promise<Ticket[]>;
   findTicketsByPhone(raffleId: string, phone: string): Promise<Ticket[]>;
   /** Aparta un número libre. Falla si ya está tomado (índice único). */
-  reserveTicket(raffleId: string, number: number, player: Ticket["player"]): Promise<Ticket | null>;
+  reserveTicket(
+    raffleId: string,
+    number: number,
+    player: Ticket["player"],
+    opts?: { source: NonNullable<Ticket["source"]>; confirmedAt?: string | null },
+  ): Promise<Ticket | null>;
   /**
    * Suma un abono sin pasarse del valor del número. Marca `paidInFullAt` al completar.
    * Devuelve null si el abono excede el saldo o el número no existe.
    */
   addPayment(raffleId: string, ticketId: string, payment: Payment, price: number): Promise<Ticket | null>;
   releaseTicket(raffleId: string, ticketId: string): Promise<void>;
+  /** Fija (o quita el fijado de) un jugador. */
+  setConfirmed(raffleId: string, ticketId: string, confirmedAt: string | null): Promise<Ticket | null>;
+  /**
+   * Libera un apartado vencido solo si sigue sin abono, sin fijar y fue creado antes de `createdBefore`.
+   * Atómico: si en ese instante alguien abona o lo fija, no se toca. Devuelve true si lo liberó.
+   */
+  releaseIfUnclaimed(raffleId: string, ticketId: string, createdBefore: string): Promise<boolean>;
+
+  addEvent(event: Omit<RaffleEvent, "id">): Promise<void>;
+  /** Más recientes primero. */
+  listEvents(raffleId: string, limit: number): Promise<RaffleEvent[]>;
+
+  /** Ajustes globales del panel (p. ej. el chat de Telegram). */
+  getSetting<T>(key: string): Promise<T | null>;
+  setSetting<T>(key: string, value: T | null): Promise<void>;
 }

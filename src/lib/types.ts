@@ -81,6 +81,13 @@ export interface Raffle {
   organizerPhone: string;
   /** Meta de recaudo (opcional) para la alcancía del panel. */
   goal?: number;
+  /**
+   * Horas que dura un apartado hecho desde la página sin abono ni confirmación.
+   * Pasado ese tiempo el número vuelve a quedar libre. 0 = nunca vence. Por defecto 48.
+   */
+  holdHours?: number;
+  /** WhatsApp que no pueden apartar (registros falsos). */
+  blockedPhones?: string[];
   status: RaffleStatus;
   createdAt: string;
   prizes: Prize[];
@@ -102,6 +109,27 @@ export interface Ticket {
   paidInFullAt: string | null;
   payments: Payment[];
   createdAt: string;
+  /** online: lo apartó el jugador desde la página; admin: lo asignó quien organiza. */
+  source?: "online" | "admin";
+  /** Jugador fijado (de confianza): su apartado no vence aunque no haya abonado. */
+  confirmedAt?: string | null;
+}
+
+export type RaffleEventType = "reserved" | "assigned" | "payment" | "confirmed" | "unconfirmed" | "released" | "expired" | "blocked" | "unblocked";
+
+/** Registro de actividad para trazabilidad. */
+export interface RaffleEvent {
+  id: string;
+  raffleId: string;
+  at: string;
+  type: RaffleEventType;
+  /** player: el jugador desde la página; admin: el panel; system: automático (vencimientos). */
+  by: "player" | "admin" | "system";
+  number?: number;
+  name?: string;
+  phone?: string;
+  amount?: number;
+  note?: string;
 }
 
 export type NewRaffle = Omit<Raffle, "id" | "createdAt">;

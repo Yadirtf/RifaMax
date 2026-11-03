@@ -24,6 +24,8 @@ La primera rifa configurada es la **Rifa Navideña 2026**: 100 números de $20.0
 - Registrar abonos (Nequi, Daviplata, efectivo, transferencia), asignar y liberar números.
 - Recordatorios por WhatsApp con el saldo de cada jugador ya escrito.
 - Ruleta animada para girar en vivo compartiendo pantalla.
+- Historial de actividad (quién apartó, abonó o liberó y cuándo) y avisos por Telegram.
+- Apartados hechos desde la página que no abonan en un tiempo configurable (48 h por defecto) se liberan solos, salvo que fijes al jugador. Los WhatsApp de registros falsos se pueden bloquear.
 
 ## Sorteos que cualquiera puede comprobar
 
@@ -62,6 +64,7 @@ Otros comandos: `npm test`, `npm run lint`, `npm run build`.
    - `ADMIN_PASSWORD`: la clave del panel.
    - `SESSION_SECRET`: una frase larga al azar.
    - `MONGODB_DB` (opcional, por defecto `rifamax`).
+   - `TELEGRAM_BOT_TOKEN` (opcional): para recibir un aviso en Telegram cada vez que alguien aparta. Créalo con [@BotFather](https://t.me/BotFather) y conecta tu chat en **Ajustes** del panel.
 4. En el panel, abre la rifa y en **Ajustes** llena los datos de pago y el WhatsApp de quien organiza.
 
 ## Estructura

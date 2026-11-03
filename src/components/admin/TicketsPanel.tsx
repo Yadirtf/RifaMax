@@ -1,15 +1,16 @@
 "use client";
 
-import { MessageCircle, Plus, Search, Trash2, Wallet } from "lucide-react";
+import { Ban, Clock, MessageCircle, Pin, PinOff, Plus, Search, Trash2, Wallet } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
-import { addPayment, assignNumber, releaseTicket } from "@/app/admin/actions";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { addPayment, assignNumber, releaseTicket, setConfirmed } from "@/app/admin/actions";
+import { expiresAt, isUnconfirmed, timeLeft } from "@/lib/hold";
 import { Field, inputCls, Segmented, Sheet, useToast } from "@/components/ui";
 import { formatCOP, formatDate, formatNumber, ticketState, whatsappLink, type TicketState } from "@/lib/raffle";
 import type { Ticket } from "@/lib/types";
 import type { AdminProps } from "./AdminRaffle";
 
-type Filter = "all" | "owing" | "paid" | "zero";
+export type Filter = "all" | "review" | "owing" | "paid" | "zero";
 
 const BADGE: Record<TicketState, { label: string; cls: string }> = {
   free: { label: "Libre", cls: "bg-white/10" },
@@ -18,10 +19,29 @@ const BADGE: Record<TicketState, { label: string; cls: string }> = {
   paid: { label: "Pagado", cls: "bg-emerald-400/15 text-emerald-200 ring-1 ring-emerald-300/30" },
 };
 
-export default function TicketsPanel({ raffle, tickets, publicUrl }: AdminProps) {
+export default function TicketsPanel({
+  raffle,
+  tickets,
+  publicUrl,
+  filter,
+  onFilter: setFilter,
+}: AdminProps & { filter: Filter; onFilter: (f: Filter) => void }) {
   const [q, setQ] = useState("");
-  const [filter, setFilter] = useState<Filter>("all");
   const [paying, setPaying] = useState<Ticket | null>(null);
+  const [releasing, setReleasing] = useState<Ticket | null>(null);
+  const [now, setNow] = useState(0);
+  useEffect(() => {
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), 60000);
+    return () => clearInterval(id);
+  }, []);
+  const reviewCount = tickets.filter(isUnconfirmed).length;
+  // Mismo número de WhatsApp en varios apartados sin abono: posible saboteo.
+  const unpaidByPhone = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const t of tickets) if (t.paidAmount === 0 && t.player.phone) m.set(t.player.phone, (m.get(t.player.phone) ?? 0) + 1);
+    return m;
+  }, [tickets]);
   const [assigning, setAssigning] = useState(false);
   const label = (n: number) => formatNumber(n, raffle.numberCount);
 
@@ -32,6 +52,7 @@ export default function TicketsPanel({ raffle, tickets, publicUrl }: AdminProps)
         if (filter === "owing" && s === "paid") return false;
         if (filter === "paid" && s !== "paid") return false;
         if (filter === "zero" && s !== "reserved") return false;
+        if (filter === "review" && !isUnconfirmed(t)) return false;
         return `${label(t.number)} ${t.player.name} ${t.player.phone}`.toLowerCase().includes(q.toLowerCase());
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -61,6 +82,7 @@ export default function TicketsPanel({ raffle, tickets, publicUrl }: AdminProps)
           onChange={setFilter}
           options={[
             { value: "all", label: `Todos (${tickets.length})` },
+            { value: "review", label: `Por confirmar (${reviewCount})` },
             { value: "owing", label: "Deben" },
             { value: "zero", label: "Sin abono" },
             { value: "paid", label: "Pagados" },
@@ -75,18 +97,33 @@ export default function TicketsPanel({ raffle, tickets, publicUrl }: AdminProps)
         {rows.map((t) => {
           const s = ticketState(t, raffle.price);
           const pct = t.paidAmount / raffle.price;
+          const review = isUnconfirmed(t);
+          const exp = expiresAt(t, raffle);
+          const dupes = t.paidAmount === 0 && t.player.phone ? (unpaidByPhone.get(t.player.phone) ?? 0) : 0;
           return (
-            <li key={t.id} className="glass flex flex-col gap-3 rounded-2xl p-4">
+            <li key={t.id} className={`glass flex flex-col gap-3 rounded-2xl p-4 ${review ? "ring-1 ring-amber-300/50" : ""}`}>
               <div className="flex items-center gap-3">
                 <span className={`num flex size-12 shrink-0 items-center justify-center rounded-xl font-display text-xl font-black ${s === "paid" ? "btn-gold" : "bg-white/10"}`}>
                   {label(t.number)}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold">{t.player.name}</p>
+                  <p className="flex items-center gap-1.5 truncate font-semibold">
+                    {t.player.name}
+                    {t.confirmedAt && <Pin className="size-3.5 shrink-0 fill-current text-[var(--accent)]" aria-label="Fijo" />}
+                  </p>
                   <p className="num truncate text-xs text-[var(--ink)]/55">{t.player.phone || "sin teléfono"}</p>
                 </div>
                 <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${BADGE[s].cls}`}>{BADGE[s].label}</span>
               </div>
+              {review && (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-amber-400/10 px-3 py-2 text-xs text-amber-100">
+                  <span className="inline-flex items-center gap-1 font-bold">
+                    <Clock className="size-3.5" aria-hidden /> Por confirmar
+                  </span>
+                  {exp && now > 0 && <span>se libera {timeLeft(exp.getTime() - now)}</span>}
+                  {dupes > 1 && <span className="font-bold text-red-200">{dupes} apartados sin abono con este WhatsApp</span>}
+                </div>
+              )}
               <div>
                 <div className="flex justify-between text-xs text-[var(--ink)]/65">
                   <span className="num">{formatCOP(t.paidAmount)} abonado</span>
@@ -107,7 +144,15 @@ export default function TicketsPanel({ raffle, tickets, publicUrl }: AdminProps)
                     <MessageCircle className="size-4" aria-hidden /> {s === "paid" ? "Confirmar" : "Recordar"}
                   </a>
                 )}
-                <ReleaseButton raffleId={raffle.id} ticket={t} label={label(t.number)} />
+                {t.paidAmount === 0 && <PinButton raffleId={raffle.id} ticket={t} />}
+                <button
+                  aria-label={`Liberar el ${label(t.number)}`}
+                  title="Liberar número"
+                  onClick={() => setReleasing(t)}
+                  className="rounded-xl px-3 py-2 text-[var(--ink)]/60 ring-1 ring-white/15 hover:bg-red-500/15 hover:text-red-200"
+                >
+                  <Trash2 className="size-4" />
+                </button>
               </div>
             </li>
           );
@@ -116,32 +161,81 @@ export default function TicketsPanel({ raffle, tickets, publicUrl }: AdminProps)
       </ul>
 
       <PaymentSheet raffle={raffle} ticket={paying} onClose={() => setPaying(null)} label={label} />
+      <ReleaseSheet raffleId={raffle.id} ticket={releasing} onClose={() => setReleasing(null)} label={label} />
       <AssignSheet raffle={raffle} tickets={tickets} open={assigning} onClose={() => setAssigning(false)} label={label} />
     </div>
   );
 }
 
-function ReleaseButton({ raffleId, ticket, label }: { raffleId: string; ticket: Ticket; label: string }) {
+/** Fija a un jugador de confianza: su apartado ya no vence. */
+function PinButton({ raffleId, ticket }: { raffleId: string; ticket: Ticket }) {
   const [pending, start] = useTransition();
   const toast = useToast();
   const router = useRouter();
+  const pinned = !!ticket.confirmedAt;
   return (
     <button
       disabled={pending}
-      aria-label={`Liberar el ${label}`}
-      title="Liberar número"
-      onClick={() => {
-        if (!confirm(`¿Liberar el ${label} de ${ticket.player.name}? Se borran sus abonos registrados.`)) return;
+      aria-pressed={pinned}
+      title={pinned ? "Quitar fijado" : "Fijar: es de confianza, su apartado no vence"}
+      onClick={() =>
         start(async () => {
-          const r = await releaseTicket({ raffleId, ticketId: ticket.id });
-          toast(r);
+          toast(await setConfirmed({ raffleId, ticketId: ticket.id, confirmed: !pinned }));
           router.refresh();
-        });
-      }}
-      className="rounded-xl px-3 py-2 text-[var(--ink)]/60 ring-1 ring-white/15 hover:bg-red-500/15 hover:text-red-200"
+        })
+      }
+      className={`inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-sm font-bold ring-1 disabled:opacity-60 ${
+        pinned ? "bg-[var(--accent)]/15 text-[var(--accent)] ring-[var(--accent)]/40" : "ring-amber-300/50 text-amber-100 hover:bg-amber-400/15"
+      }`}
     >
-      <Trash2 className="size-4" />
+      {pinned ? <PinOff className="size-4" aria-hidden /> : <Pin className="size-4" aria-hidden />}
+      <span className="max-[420px]:sr-only">{pinned ? "Fijo" : "Fijar"}</span>
     </button>
+  );
+}
+
+function ReleaseSheet({ raffleId, ticket, onClose, label }: { raffleId: string; ticket: Ticket | null; onClose: () => void; label: (n: number) => string }) {
+  const [pending, start] = useTransition();
+  const toast = useToast();
+  const router = useRouter();
+  const release = (block: boolean) =>
+    ticket &&
+    start(async () => {
+      const r = await releaseTicket({ raffleId, ticketId: ticket.id, block });
+      toast(r);
+      if (r.ok) {
+        onClose();
+        router.refresh();
+      }
+    });
+  return (
+    <Sheet open={!!ticket} onClose={onClose} title={ticket ? `Liberar el ${label(ticket.number)}` : ""}>
+      {ticket && (
+        <div className="space-y-4">
+          <p className="text-sm text-[var(--ink)]/75">
+            <b>{ticket.player.name}</b> · {ticket.player.phone || "sin teléfono"}
+            {ticket.paidAmount > 0 && <> · lleva {formatCOP(ticket.paidAmount)} abonados, que se borran del registro.</>}
+          </p>
+          <button
+            disabled={pending}
+            onClick={() => release(false)}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white/10 py-3.5 font-bold ring-1 ring-white/15 hover:bg-white/15 disabled:opacity-60"
+          >
+            <Trash2 className="size-4" aria-hidden /> Liberar el número
+          </button>
+          {ticket.player.phone && (
+            <button
+              disabled={pending}
+              onClick={() => release(true)}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-red-500/20 py-3.5 font-bold text-red-100 ring-1 ring-red-400/40 hover:bg-red-500/30 disabled:opacity-60"
+            >
+              <Ban className="size-4" aria-hidden /> Liberar y bloquear este WhatsApp
+            </button>
+          )}
+          <p className="text-xs text-[var(--ink)]/55">Bloquear sirve para registros falsos: ese WhatsApp no podrá volver a apartar. Lo puedes desbloquear en Ajustes.</p>
+        </div>
+      )}
+    </Sheet>
   );
 }
 

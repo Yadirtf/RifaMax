@@ -2,6 +2,7 @@
 
 import { Logo, LogoMark } from "@/components/Logo";
 import { BRAND } from "@/lib/brand";
+import { holdHoursOf } from "@/lib/hold";
 import { motion } from "motion/react";
 import { Radio } from "lucide-react";
 import Link from "next/link";
@@ -152,7 +153,7 @@ export default function RaffleView({ view, theme, open }: Props) {
 
         <section id="reglas" aria-labelledby="reglas-t" className="scroll-mt-20">
           <SectionTitle id="reglas-t" kicker="Sin letra pequeña" title="Cómo se juega" text="Reglas claras antes de poner un peso." />
-          <Rules price={raffle.price} minDeposit={raffle.minDeposit} paymentDeadline={raffle.paymentDeadline} numberCount={raffle.numberCount} prizes={prizes} />
+          <Rules price={raffle.price} minDeposit={raffle.minDeposit} paymentDeadline={raffle.paymentDeadline} numberCount={raffle.numberCount} prizes={prizes} holdHours={holdHoursOf(raffle)} />
         </section>
 
         <section id="mis-numeros" aria-labelledby="mis-t" className="scroll-mt-20">

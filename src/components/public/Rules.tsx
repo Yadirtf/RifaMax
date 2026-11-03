@@ -12,16 +12,17 @@ interface Props {
   paymentDeadline: string;
   numberCount: number;
   prizes: PublicPrize[];
+  holdHours: number;
 }
 
-export default function Rules({ price, minDeposit, paymentDeadline, numberCount, prizes }: Props) {
+export default function Rules({ price, minDeposit, paymentDeadline, numberCount, prizes, holdHours }: Props) {
   const lottery = prizes.find((p) => p.method === "lottery");
   const early = prizes.find((p) => p.paidBefore);
   const reverse = prizes.find((p) => p.method === "reverse");
   const digits = digitsFor(numberCount);
 
   const steps = [
-    { icon: Ticket, title: "Aparta tu número", text: `Elige uno libre en el tablero con tu nombre y WhatsApp. Cada número vale ${formatCOP(price)}.` },
+    { icon: Ticket, title: "Aparta tu número", text: `Elige uno libre en el tablero con tu nombre y WhatsApp. Cada número vale ${formatCOP(price)}.${holdHours > 0 ? ` Haz tu primer abono en las siguientes ${holdHours} horas o el número vuelve a quedar libre.` : ""}` },
     { icon: HandCoins, title: "Abona a tu ritmo", text: `Paga por partes desde ${formatCOP(minDeposit)}. Cada abono queda registrado y lo puedes consultar en "Mis números".` },
     {
       icon: CalendarCheck,

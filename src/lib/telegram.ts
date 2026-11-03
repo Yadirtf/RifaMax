@@ -1,9 +1,10 @@
 /**
  * Avisos por Telegram al celular de quien organiza.
- * Requiere TELEGRAM_BOT_TOKEN (de @BotFather). El chat se conecta desde el panel y se guarda en la base.
+ * Requiere TELEGRAM_BOT_TOKEN (de @BotFather). Cada persona se conecta desde el panel (hasta 5) y se guarda en la base.
  */
 
-const API = "https://api.telegram.org";
+// TELEGRAM_API_URL solo sirve para pruebas locales con un servidor falso.
+const API = process.env.TELEGRAM_API_URL || "https://api.telegram.org";
 
 export const telegramToken = () => process.env.TELEGRAM_BOT_TOKEN?.trim() || "";
 
@@ -13,6 +14,20 @@ export interface TelegramChat {
 }
 
 export const TELEGRAM_SETTING = "telegram";
+export const MAX_TELEGRAM_CHATS = 5;
+
+const isChat = (v: unknown): v is TelegramChat => !!v && typeof (v as TelegramChat).chatId === "number";
+
+/** Lee las personas conectadas. Acepta el formato anterior (una sola persona). */
+export function readChats(v: unknown): TelegramChat[] {
+  if (Array.isArray(v)) return v.filter(isChat);
+  return isChat(v) ? [v] : [];
+}
+
+/** Agrega una persona; si ya estaba, actualiza su nombre. */
+export function addChat(list: TelegramChat[], chat: TelegramChat): TelegramChat[] {
+  return list.some((c) => c.chatId === chat.chatId) ? list.map((c) => (c.chatId === chat.chatId ? chat : c)) : [...list, chat];
+}
 
 async function call<T>(method: string, body: Record<string, unknown>, fetcher: typeof fetch = fetch): Promise<T> {
   const token = telegramToken();

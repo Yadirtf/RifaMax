@@ -1,7 +1,7 @@
 import "server-only";
 import { formatNumber } from "./raffle";
 import type { Repo } from "./repo/types";
-import { escapeHtml, sendTelegram, TELEGRAM_SETTING, telegramToken, type TelegramChat } from "./telegram";
+import { escapeHtml, readChats, sendTelegram, TELEGRAM_SETTING, telegramToken } from "./telegram";
 import type { Raffle, RaffleEvent } from "./types";
 
 /** Guarda el evento en el historial. Si falla, no interrumpe la acción. */
@@ -13,12 +13,13 @@ export async function logEvent(repo: Repo, e: Omit<RaffleEvent, "id" | "at"> & {
   }
 }
 
-/** Aviso a Telegram si está configurado. */
+/** Aviso a Telegram a todas las personas conectadas. */
 export async function notifyAdmin(repo: Repo, text: string): Promise<boolean> {
   if (!telegramToken()) return false;
-  const chat = await repo.getSetting<TelegramChat>(TELEGRAM_SETTING).catch(() => null);
-  if (!chat) return false;
-  return sendTelegram(chat.chatId, text);
+  const chats = readChats(await repo.getSetting<unknown>(TELEGRAM_SETTING).catch(() => null));
+  if (!chats.length) return false;
+  const sent = await Promise.all(chats.map((c) => sendTelegram(c.chatId, text)));
+  return sent.some(Boolean);
 }
 
 export function reservedMessage(raffle: Raffle, number: number, name: string, phone: string, holdHours: number, panelUrl: string) {

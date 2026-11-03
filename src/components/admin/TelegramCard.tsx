@@ -2,7 +2,7 @@
 
 import { BellRing, CheckCircle2, Copy, ExternalLink, MessageCircle, Send, UserPlus, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { telegramConnectFinish, telegramConnectStart, telegramDisconnect, telegramTest } from "@/app/admin/actions";
 import { useToast } from "@/components/ui";
 import type { AdminProps } from "./AdminRaffle";
@@ -13,6 +13,30 @@ export default function TelegramCard({ telegram }: Pick<AdminProps, "telegram">)
   const [link, setLink] = useState<{ url: string; code: string } | null>(null);
   const toast = useToast();
   const router = useRouter();
+  // Mientras haya una invitación abierta, revisa sola cada 5 s si ya tocaron Iniciar (hasta 10 min).
+  const waiting = !!link || telegram.pending > 0;
+  const busy = useRef(false);
+  useEffect(() => {
+    if (!waiting || !telegram.configured) return;
+    const until = Date.now() + 10 * 60_000;
+    const id = setInterval(async () => {
+      if (busy.current || document.hidden) return;
+      if (Date.now() > until) return clearInterval(id);
+      busy.current = true;
+      try {
+        const r = await telegramConnectFinish({ quiet: true });
+        if (r.ok) {
+          toast(r);
+          setLink(null);
+          router.refresh();
+        }
+      } finally {
+        busy.current = false;
+      }
+    }, 5000);
+    return () => clearInterval(id);
+  }, [waiting, telegram.configured, toast, router]);
+
   const act = (fn: () => Promise<{ ok: boolean; message: string }>, after?: () => void) =>
     start(async () => {
       const r = await fn();
@@ -76,6 +100,17 @@ export default function TelegramCard({ telegram }: Pick<AdminProps, "telegram">)
             <p className="text-sm text-[var(--ink)]/75">Recibe un mensaje cada vez que alguien aparte un número. Puedes conectar hasta 5 personas, por ejemplo a tu pareja.</p>
           )}
 
+          {!link && telegram.pending > 0 && (
+            <div className="flex items-center justify-between gap-3 rounded-xl bg-[#2AABEE]/10 px-3 py-2.5 text-sm ring-1 ring-[#2AABEE]/30">
+              <span className="text-[var(--ink)]/80">
+                {telegram.pending === 1 ? "Hay 1 invitación esperando" : `Hay ${telegram.pending} invitaciones esperando`} a que toquen <b>Iniciar</b>. La revisamos sola.
+              </span>
+              <button disabled={pending} onClick={() => act(() => telegramConnectFinish())} className="shrink-0 font-bold text-[#8fd3ff] disabled:opacity-60">
+                Revisar
+              </button>
+            </div>
+          )}
+
           {!link ? (
             <div className={telegram.chats.length ? "grid grid-cols-2 gap-2" : ""}>
               {telegram.chats.length > 0 && (
@@ -115,7 +150,7 @@ export default function TelegramCard({ telegram }: Pick<AdminProps, "telegram">)
             <div className="space-y-3 rounded-xl bg-black/20 p-3">
               <div className="flex items-start justify-between gap-2">
                 <p className="text-sm text-[var(--ink)]/80">
-                  Abre este enlace en el celular de quien recibirá los avisos (el tuyo o el de tu pareja) y toca <b>Iniciar</b> en el bot.
+                  Abre este enlace en el celular de quien recibirá los avisos (el tuyo o el de tu pareja) y toca <b>Iniciar</b> en el bot. Aquí se agrega sola en unos segundos.
                 </p>
                 <button onClick={() => setLink(null)} aria-label="Cancelar" className="rounded-full p-1 text-[var(--ink)]/60 hover:bg-white/10">
                   <X className="size-4" />
@@ -147,7 +182,7 @@ export default function TelegramCard({ telegram }: Pick<AdminProps, "telegram">)
               </button>
               <button
                 disabled={pending}
-                onClick={() => act(() => telegramConnectFinish({ code: link.code }), () => setLink(null))}
+                onClick={() => act(() => telegramConnectFinish(), () => setLink(null))}
                 className="btn-gold w-full rounded-xl py-3.5 font-display font-bold disabled:opacity-60"
               >
                 {pending ? "Buscando…" : "Ya tocó Iniciar"}

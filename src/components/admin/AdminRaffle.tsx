@@ -32,7 +32,7 @@ export interface AdminProps {
   prizeMeta: Record<string, PrizeMeta>;
   simulated: boolean;
   events: RaffleEvent[];
-  telegram: { configured: boolean; chats: TelegramChat[] };
+  telegram: { configured: boolean; chats: TelegramChat[]; pending: number };
 }
 
 const TABS = [

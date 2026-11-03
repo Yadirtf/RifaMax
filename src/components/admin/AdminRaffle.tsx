@@ -1,17 +1,21 @@
 "use client";
 
 import { motion } from "motion/react";
-import { CircleDot, LayoutDashboard, MessageCircle, Settings, Ticket } from "lucide-react";
+import { AlertTriangle, CircleDot, LayoutDashboard, MessageCircle, Settings, Ticket } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Jar3D } from "@/components/three/lazy";
 import type { Palette } from "@/components/three/shapes";
 import { ToastProvider } from "@/components/ui";
 import { formatCOP, formatNumber, ticketState, whatsappLink } from "@/lib/raffle";
-import type { Raffle, Ticket as TicketT } from "@/lib/types";
+import type { Raffle, RaffleEvent, Ticket as TicketT } from "@/lib/types";
+import type { TelegramChat } from "@/lib/telegram";
+import ActivityFeed from "./ActivityFeed";
 import DrawsPanel from "./DrawsPanel";
 import SettingsPanel from "./SettingsPanel";
 import StoryCard, { type StoryState } from "./StoryCard";
-import TicketsPanel from "./TicketsPanel";
+import TicketsPanel, { type Filter } from "./TicketsPanel";
+import { expiresAt, isUnconfirmed, timeLeft } from "@/lib/hold";
 
 export interface PrizeMeta {
   howLabel: string;
@@ -27,6 +31,8 @@ export interface AdminProps {
   palette: Palette;
   prizeMeta: Record<string, PrizeMeta>;
   simulated: boolean;
+  events: RaffleEvent[];
+  telegram: { configured: boolean; chat: TelegramChat | null };
 }
 
 const TABS = [
@@ -40,12 +46,23 @@ type Tab = (typeof TABS)[number]["key"];
 export default function AdminRaffle(props: AdminProps) {
   const [tab, setTab] = useState<Tab>("resumen");
   const [story, setStory] = useState<StoryState | null>(null);
+  const [filter, setFilter] = useState<Filter>("all");
+  const router = useRouter();
+  const pendingCount = props.tickets.filter(isUnconfirmed).length;
   useEffect(() => {
     const h = window.location.hash.slice(1) as Tab;
     if (TABS.some((t) => t.key === h)) setTab(h);
   }, []);
-  const go = (t: Tab) => {
+  // Mantiene el panel al día (apartados nuevos, vencimientos) mientras está abierto.
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (document.visibilityState === "visible") router.refresh();
+    }, 30000);
+    return () => clearInterval(id);
+  }, [router]);
+  const go = (t: Tab, f?: Filter) => {
     setTab(t);
+    if (f) setFilter(f);
     history.replaceState(null, "", `#${t}`);
   };
 
@@ -63,12 +80,17 @@ export default function AdminRaffle(props: AdminProps) {
             {tab === t.key && <motion.span layoutId="tab" className="absolute inset-0 rounded-xl bg-[var(--ink)]" transition={{ type: "spring", stiffness: 400, damping: 34 }} />}
             <t.icon className={`relative size-4 ${tab === t.key ? "text-[var(--bg)]" : ""}`} aria-hidden />
             <span className={`relative ${tab === t.key ? "text-[var(--bg)]" : "text-[var(--ink)]/75"}`}>{t.label}</span>
+            {t.key === "numeros" && pendingCount > 0 && (
+              <span className="relative rounded-full bg-amber-400 px-1.5 text-[11px] font-black text-[#2a1a00]" aria-label={`${pendingCount} por confirmar`}>
+                {pendingCount}
+              </span>
+            )}
           </button>
         ))}
       </div>
       <motion.div key={tab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
         {tab === "resumen" && <Overview {...props} onGo={go} story={story} onStory={setStory} />}
-        {tab === "numeros" && <TicketsPanel {...props} />}
+        {tab === "numeros" && <TicketsPanel {...props} filter={filter} onFilter={setFilter} />}
         {tab === "sorteos" && <DrawsPanel {...props} />}
         {tab === "ajustes" && <SettingsPanel {...props} />}
       </motion.div>
@@ -84,7 +106,12 @@ function Overview({
   onGo,
   story,
   onStory,
-}: AdminProps & { onGo: (t: Tab) => void; story: StoryState | null; onStory: (s: StoryState | null) => void }) {
+  events,
+}: AdminProps & { onGo: (t: Tab, f?: Filter) => void; story: StoryState | null; onStory: (s: StoryState | null) => void }) {
+  const pending = tickets.filter(isUnconfirmed);
+  const nextExpiry = pending
+    .map((t) => expiresAt(t, raffle)?.getTime() ?? Infinity)
+    .reduce((a, b) => Math.min(a, b), Infinity);
   const collected = tickets.reduce((s, t) => s + t.paidAmount, 0);
   const owed = tickets.reduce((s, t) => s + Math.max(0, raffle.price - t.paidAmount), 0);
   const prizes = raffle.prizes.reduce((s, p) => s + p.value, 0);
@@ -116,12 +143,32 @@ function Overview({
       </div>
 
       <div className="space-y-4">
+        {pending.length > 0 && (
+          <button
+            onClick={() => onGo("numeros", "review")}
+            className="flex w-full items-center gap-3 rounded-[20px] bg-amber-400/15 p-4 text-left ring-1 ring-amber-300/40 transition hover:bg-amber-400/20"
+          >
+            <AlertTriangle className="size-6 shrink-0 text-amber-300" aria-hidden />
+            <span className="min-w-0 flex-1">
+              <span className="block font-display font-extrabold">
+                {pending.length} {pending.length === 1 ? "apartado por confirmar" : "apartados por confirmar"}
+              </span>
+              <span className="block text-sm text-[var(--ink)]/70">
+                Fija a los que conoces y libera los falsos.
+                {Number.isFinite(nextExpiry) && <NextExpiry at={nextExpiry} />}
+              </span>
+            </span>
+            <span className="text-sm font-bold text-amber-200">Revisar</span>
+          </button>
+        )}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Kpi label="Por cobrar" value={formatCOP(owed)} />
           <Kpi label="Pagados" value={`${paidCount}/${raffle.numberCount}`} />
           <Kpi label="Apartados" value={String(tickets.length - paidCount)} />
           <Kpi label="Utilidad si se venden todos" value={formatCOP(raffle.numberCount * raffle.price - prizes)} />
         </div>
+
+        <ActivityFeed raffle={raffle} events={events} />
 
         <section className="glass rounded-[24px] p-5">
           <div className="mb-3 flex items-center justify-between">
@@ -183,6 +230,13 @@ function Overview({
       </div>
     </div>
   );
+}
+
+function NextExpiry({ at }: { at: number }) {
+  const [now, setNow] = useState(0);
+  useEffect(() => setNow(Date.now()), []);
+  if (!now) return null;
+  return <> El primero se libera {timeLeft(at - now)}.</>;
 }
 
 function Kpi({ label, value }: { label: string; value: string }) {

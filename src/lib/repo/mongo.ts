@@ -1,9 +1,11 @@
 import { MongoClient, ObjectId, type Collection, type Db } from "mongodb";
-import type { Raffle, Ticket } from "../types";
+import type { Raffle, RaffleEvent, Ticket } from "../types";
 import type { Repo } from "./types";
 
 type RaffleDoc = Omit<Raffle, "id"> & { _id: ObjectId };
 type TicketDoc = Omit<Ticket, "id" | "raffleId"> & { _id: ObjectId; raffleId: ObjectId };
+type EventDoc = Omit<RaffleEvent, "id" | "raffleId"> & { _id: ObjectId; raffleId: ObjectId };
+type SettingDoc = { _id: string; value: unknown };
 
 const g = globalThis as unknown as { rifamaxMongo?: Promise<Db> };
 
@@ -18,6 +20,7 @@ function connect(uri: string): Promise<Db> {
         db.collection("raffles").createIndex({ slug: 1 }, { unique: true }),
         db.collection("tickets").createIndex({ raffleId: 1, number: 1 }, { unique: true }),
         db.collection("tickets").createIndex({ raffleId: 1, "player.phone": 1 }),
+        db.collection("events").createIndex({ raffleId: 1, at: -1 }),
       ]);
       return db;
     })().catch((e) => {
@@ -40,6 +43,8 @@ const isDuplicate = (e: unknown) => (e as { code?: number })?.code === 11000;
 export function mongoRepo(uri: string): Repo {
   const raffles = async () => (await connect(uri)).collection<RaffleDoc>("raffles");
   const tickets = async () => (await connect(uri)).collection<TicketDoc>("tickets");
+  const events = async () => (await connect(uri)).collection<EventDoc>("events");
+  const settings = async () => (await connect(uri)).collection<SettingDoc>("settings");
 
   async function findTicket(col: Collection<TicketDoc>, raffleId: string, ticketId: string) {
     const r = oid(raffleId);
@@ -105,7 +110,7 @@ export function mongoRepo(uri: string): Repo {
       return (await (await tickets()).find({ raffleId: r, "player.phone": phone }).sort({ number: 1 }).toArray()).map(toTicket);
     },
 
-    async reserveTicket(raffleId, number, player) {
+    async reserveTicket(raffleId, number, player, opts) {
       const r = oid(raffleId);
       if (!r) return null;
       const doc: TicketDoc = {
@@ -117,6 +122,7 @@ export function mongoRepo(uri: string): Repo {
         paidInFullAt: null,
         payments: [],
         createdAt: new Date().toISOString(),
+        ...(opts ? { source: opts.source, confirmedAt: opts.confirmedAt ?? null } : {}),
       };
       try {
         await (await tickets()).insertOne(doc);
@@ -150,6 +156,50 @@ export function mongoRepo(uri: string): Repo {
     async releaseTicket(raffleId, ticketId) {
       const ref = await findTicket(await tickets(), raffleId, ticketId);
       if (ref) await ref.col.deleteOne({ _id: ref.t, raffleId: ref.r });
+    },
+
+    async setConfirmed(raffleId, ticketId, confirmedAt) {
+      const ref = await findTicket(await tickets(), raffleId, ticketId);
+      if (!ref) return null;
+      const doc = await ref.col.findOneAndUpdate({ _id: ref.t, raffleId: ref.r }, { $set: { confirmedAt } }, { returnDocument: "after" });
+      return doc ? toTicket(doc) : null;
+    },
+
+    async releaseIfUnclaimed(raffleId, ticketId, createdBefore) {
+      const ref = await findTicket(await tickets(), raffleId, ticketId);
+      if (!ref) return false;
+      const res = await ref.col.deleteOne({
+        _id: ref.t,
+        raffleId: ref.r,
+        source: "online",
+        paidAmount: 0,
+        confirmedAt: { $in: [null] },
+        createdAt: { $lt: createdBefore },
+      });
+      return res.deletedCount === 1;
+    },
+
+    async addEvent({ raffleId, ...rest }) {
+      const r = oid(raffleId);
+      if (r) await (await events()).insertOne({ _id: new ObjectId(), raffleId: r, ...rest });
+    },
+
+    async listEvents(raffleId, limit) {
+      const r = oid(raffleId);
+      if (!r) return [];
+      const docs = await (await events()).find({ raffleId: r }).sort({ at: -1 }).limit(limit).toArray();
+      return docs.map(({ _id, raffleId: rid, ...rest }) => ({ id: String(_id), raffleId: String(rid), ...rest }));
+    },
+
+    async getSetting<T>(key: string) {
+      const doc = await (await settings()).findOne({ _id: key });
+      return doc ? (doc.value as T) : null;
+    },
+
+    async setSetting(key, value) {
+      const col = await settings();
+      if (value === null) await col.deleteOne({ _id: key });
+      else await col.updateOne({ _id: key }, { $set: { value } }, { upsert: true });
     },
   };
 }

@@ -4,6 +4,8 @@ import AdminRaffle from "@/components/admin/AdminRaffle";
 import AdminShell from "@/components/admin/AdminShell";
 import { requireAdmin } from "@/lib/auth";
 import { getBundle } from "@/lib/data";
+import { getRepo } from "@/lib/repo";
+import { TELEGRAM_SETTING, telegramToken, type TelegramChat } from "@/lib/telegram";
 import { canSchedule, DRAND_SIMULATED, rouletteCandidates } from "@/lib/draws";
 import { LOTTERIES } from "@/lib/lotteries";
 import { getTheme } from "@/lib/themes";
@@ -18,6 +20,11 @@ export default async function AdminRafflePage({ params }: { params: Promise<{ id
   const h = await headers();
   const origin = `${h.get("x-forwarded-proto") ?? "http"}://${h.get("host")}`;
   const theme = getTheme(b.raffle.theme);
+  const repo = getRepo();
+  const [events, chat] = await Promise.all([
+    repo.listEvents(b.raffle.id, 60).catch(() => []),
+    repo.getSetting<TelegramChat>(TELEGRAM_SETTING).catch(() => null),
+  ]);
 
   return (
     <AdminShell theme={b.raffle.theme} title={b.raffle.name}>
@@ -38,6 +45,8 @@ export default async function AdminRafflePage({ params }: { params: Promise<{ id
           ]),
         )}
         simulated={DRAND_SIMULATED}
+        events={events}
+        telegram={{ configured: !!telegramToken(), chat }}
       />
     </AdminShell>
   );

@@ -124,6 +124,7 @@ function ReserveSheet(props: Props & { cell: PublicCell; onClose: () => void }) 
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  const [hold, setHold] = useState(0);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
 
@@ -134,6 +135,7 @@ function ReserveSheet(props: Props & { cell: PublicCell; onClose: () => void }) 
       const r = await reserveNumber({ slug: props.slug, number: cell.n, name, phone });
       if (r.ok) {
         setDone(r.label ?? cell.label);
+        setHold(r.holdHours ?? 0);
         props.onReserved?.();
       } else setError(r.message);
     });
@@ -171,6 +173,11 @@ function ReserveSheet(props: Props & { cell: PublicCell; onClose: () => void }) 
             <p className="mt-2 text-sm text-[var(--ink)]/75">
               Quedó apartado. Ahora abona desde {formatCOP(props.minDeposit)} cuando quieras y termina antes del {formatDate(props.paymentDeadline)} para participar.
             </p>
+            {hold > 0 && (
+              <p className="mt-3 rounded-xl bg-amber-400/15 px-3 py-2 text-sm font-semibold text-amber-100 ring-1 ring-amber-300/30">
+                Haz tu primer abono en las próximas {hold} horas para asegurarlo. Si no, el número vuelve a quedar libre.
+              </p>
+            )}
             {props.paymentInfo && <p className="glass mt-4 rounded-2xl p-4 text-left text-sm">{props.paymentInfo}</p>}
             {props.organizerPhone ? (
               <a

@@ -2,7 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { randomBytes } from "node:crypto";
+import { logEvent } from "@/lib/activity";
 import { checkPassword, endSession, requireAdmin, startSession } from "@/lib/auth";
+import { cleanPhone } from "@/lib/hold";
+import { botUsername, findChatByCode, sendTelegram, TELEGRAM_SETTING, telegramToken, type TelegramChat } from "@/lib/telegram";
 import { getBundle, type RaffleBundle } from "@/lib/data";
 import { applyLottery, applyReverse, resetDraw, scheduleRoulette } from "@/lib/draws";
 import { fetchOfficialResult, LOTTERIES, lotteryInfo, type OfficialResult } from "@/lib/lotteries";
@@ -83,6 +87,7 @@ export async function addPayment(input: { raffleId: string; ticketId: string; am
       raffle.price,
     );
     if (!updated) return fail("No se pudo registrar: el saldo cambió. Recarga la página.");
+    await logEvent(getRepo(), { raffleId: raffle.id, type: "payment", by: "admin", number: t.number, name: t.player.name, amount, note: input.method.slice(0, 20) });
     return updated.paidAmount >= raffle.price ? "¡Número pagado completo!" : "Abono registrado.";
   });
 }
@@ -90,15 +95,18 @@ export async function addPayment(input: { raffleId: string; ticketId: string; am
 export async function assignNumber(input: { raffleId: string; number: number; name: string; phone: string }) {
   return run(input.raffleId, async ({ raffle }) => {
     const name = input.name.trim().slice(0, 60);
-    const phone = input.phone.replace(/\D/g, "").replace(/^57(?=\d{10}$)/, "");
+    const phone = cleanPhone(input.phone);
     if (name.length < 2) return fail("Escribe el nombre.");
     if (!Number.isInteger(input.number) || input.number < 0 || input.number >= raffle.numberCount) return fail("Número inválido.");
-    const t = await getRepo().reserveTicket(raffle.id, input.number, { name, phone });
-    return t ? "Número asignado. Registra su abono." : fail("Ese número ya está apartado.");
+    // Lo asigna quien organiza: queda fijado desde el inicio.
+    const t = await getRepo().reserveTicket(raffle.id, input.number, { name, phone }, { source: "admin", confirmedAt: new Date().toISOString() });
+    if (!t) return fail("Ese número ya está apartado.");
+    await logEvent(getRepo(), { raffleId: raffle.id, type: "assigned", by: "admin", number: t.number, name, phone });
+    return "Número asignado. Registra su abono.";
   });
 }
 
-export async function releaseTicket(input: { raffleId: string; ticketId: string }) {
+export async function releaseTicket(input: { raffleId: string; ticketId: string; block?: boolean }) {
   return run(input.raffleId, async ({ raffle, tickets }) => {
     const t = tickets.find((x) => x.id === input.ticketId);
     if (!t) return fail("Número no encontrado.");
@@ -107,8 +115,87 @@ export async function releaseTicket(input: { raffleId: string; ticketId: string 
     if (raffle.prizes.some((p) => p.draw?.roulette?.eligible.includes(t.number) && p.draw.status === "scheduled"))
       return fail("Este número está en una ruleta programada.");
     await getRepo().releaseTicket(raffle.id, t.id);
+    await logEvent(getRepo(), { raffleId: raffle.id, type: "released", by: "admin", number: t.number, name: t.player.name, phone: t.player.phone, amount: t.paidAmount || undefined });
+    if (input.block && t.player.phone) {
+      const blocked = [...new Set([...(raffle.blockedPhones ?? []), t.player.phone])];
+      await getRepo().updateRaffle(raffle.id, { blockedPhones: blocked });
+      await logEvent(getRepo(), { raffleId: raffle.id, type: "blocked", by: "admin", name: t.player.name, phone: t.player.phone });
+      return `Número liberado y ${t.player.phone} bloqueado.`;
+    }
     return "Número liberado.";
   });
+}
+
+/** Fija a un jugador de confianza (su apartado no vence) o le quita el fijado. */
+export async function setConfirmed(input: { raffleId: string; ticketId: string; confirmed: boolean }) {
+  return run(input.raffleId, async ({ raffle, tickets }) => {
+    const t = tickets.find((x) => x.id === input.ticketId);
+    if (!t) return fail("Ese número ya no está apartado.");
+    const updated = await getRepo().setConfirmed(raffle.id, t.id, input.confirmed ? new Date().toISOString() : null);
+    if (!updated) return fail("No se pudo actualizar. Recarga la página.");
+    await logEvent(getRepo(), { raffleId: raffle.id, type: input.confirmed ? "confirmed" : "unconfirmed", by: "admin", number: t.number, name: t.player.name });
+    return input.confirmed ? `${t.player.name.split(" ")[0]} quedó fijo.` : "Se quitó el fijado.";
+  });
+}
+
+export async function unblockPhone(input: { raffleId: string; phone: string }) {
+  return run(input.raffleId, async ({ raffle }) => {
+    await getRepo().updateRaffle(raffle.id, { blockedPhones: (raffle.blockedPhones ?? []).filter((p) => p !== input.phone) });
+    await logEvent(getRepo(), { raffleId: raffle.id, type: "unblocked", by: "admin", phone: input.phone });
+    return `${input.phone} ya puede apartar.`;
+  });
+}
+
+// --- Avisos por Telegram ---------------------------------------------------
+
+export interface TelegramStatus {
+  configured: boolean;
+  chat: TelegramChat | null;
+}
+
+export async function telegramStatus(): Promise<TelegramStatus> {
+  await requireAdmin();
+  return { configured: !!telegramToken(), chat: await getRepo().getSetting<TelegramChat>(TELEGRAM_SETTING).catch(() => null) };
+}
+
+/** Paso 1: enlace al bot con un código de un solo uso. */
+export async function telegramConnectStart(): Promise<Result & { link?: string; code?: string }> {
+  await requireAdmin();
+  try {
+    const code = randomBytes(6).toString("hex");
+    const user = await botUsername();
+    return { ok: true, message: "", link: `https://t.me/${user}?start=${code}`, code };
+  } catch (e) {
+    return fail(errMsg(e));
+  }
+}
+
+/** Paso 2: después de tocar "Iniciar" en Telegram, se busca el chat que envió el código. */
+export async function telegramConnectFinish(input: { code: string }): Promise<Result> {
+  await requireAdmin();
+  try {
+    if (!/^[0-9a-f]{12}$/.test(input.code)) return fail("Código inválido. Empieza de nuevo.");
+    const chat = await findChatByCode(input.code);
+    if (!chat) return fail("Aún no vemos tu mensaje. En Telegram toca Iniciar y vuelve a intentarlo.");
+    await getRepo().setSetting(TELEGRAM_SETTING, chat);
+    await sendTelegram(chat.chatId, "✅ Listo. Aquí te avisaremos cuando alguien aparte un número.");
+    return { ok: true, message: `Conectado con ${chat.name}.` };
+  } catch (e) {
+    return fail(errMsg(e));
+  }
+}
+
+export async function telegramTest(): Promise<Result> {
+  await requireAdmin();
+  const chat = await getRepo().getSetting<TelegramChat>(TELEGRAM_SETTING);
+  if (!chat) return fail("Primero conecta Telegram.");
+  return (await sendTelegram(chat.chatId, "🔔 Prueba de RifaMax: los avisos funcionan.")) ? { ok: true, message: "Te enviamos un mensaje de prueba." } : fail("Telegram no respondió. Revisa el token.");
+}
+
+export async function telegramDisconnect(): Promise<Result> {
+  await requireAdmin();
+  await getRepo().setSetting(TELEGRAM_SETTING, null);
+  return { ok: true, message: "Avisos desactivados." };
 }
 
 // --- Rifas -----------------------------------------------------------------
@@ -227,6 +314,7 @@ export async function updateRaffleInfo(input: { raffleId: string; patch: RaffleI
     if (p.paymentInfo !== undefined) patch.paymentInfo = p.paymentInfo.trim().slice(0, 300);
     if (p.organizerPhone !== undefined) patch.organizerPhone = p.organizerPhone.replace(/\D/g, "").slice(0, 13);
     if (p.goal !== undefined) patch.goal = Math.max(0, Math.round(Number(p.goal) || 0));
+    if (p.holdHours !== undefined) patch.holdHours = Math.min(24 * 30, Math.max(0, Math.round(Number(p.holdHours) || 0)));
     if (p.theme !== undefined && themes[p.theme]) patch.theme = p.theme;
     if (p.status !== undefined && (["draft", "active", "closed", "finished"] as RaffleStatus[]).includes(p.status)) patch.status = p.status;
     await getRepo().updateRaffle(raffle.id, patch);

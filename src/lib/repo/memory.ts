@@ -1,4 +1,4 @@
-import type { Raffle, Ticket } from "../types";
+import type { Raffle, RaffleEvent, Ticket } from "../types";
 import { christmasRaffle } from "./seed";
 import type { Repo } from "./types";
 
@@ -9,6 +9,8 @@ import type { Repo } from "./types";
 interface Store {
   raffles: Map<string, Raffle>;
   tickets: Map<string, Ticket>;
+  events: RaffleEvent[];
+  settings: Map<string, unknown>;
   seq: number;
 }
 
@@ -16,7 +18,7 @@ const g = globalThis as unknown as { rifamaxMemory?: Store };
 
 function store(): Store {
   if (!g.rifamaxMemory) {
-    const s: Store = { raffles: new Map(), tickets: new Map(), seq: 1 };
+    const s: Store = { raffles: new Map(), tickets: new Map(), events: [], settings: new Map(), seq: 1 };
     const id = "r" + s.seq++;
     s.raffles.set(id, { id, createdAt: new Date().toISOString(), ...christmasRaffle() });
     if (process.env.RIFAMAX_DEMO_TICKETS === "1") seedDemoTickets(s, id);
@@ -68,7 +70,7 @@ export function memoryRepo(): Repo {
     async findTicketsByPhone(raffleId, phone) {
       return (await this.listTickets(raffleId)).filter((t) => t.player.phone === phone);
     },
-    async reserveTicket(raffleId, number, player) {
+    async reserveTicket(raffleId, number, player, opts) {
       const s = store();
       if ([...s.tickets.values()].some((t) => t.raffleId === raffleId && t.number === number)) return null;
       const t: Ticket = {
@@ -80,6 +82,7 @@ export function memoryRepo(): Repo {
         paidInFullAt: null,
         payments: [],
         createdAt: new Date().toISOString(),
+        ...(opts ? { source: opts.source, confirmedAt: opts.confirmedAt ?? null } : {}),
       };
       s.tickets.set(t.id, t);
       return clone(t);
@@ -96,6 +99,38 @@ export function memoryRepo(): Repo {
       const s = store();
       if (s.tickets.get(ticketId)?.raffleId === raffleId) s.tickets.delete(ticketId);
     },
+    async setConfirmed(raffleId, ticketId, confirmedAt) {
+      const t = store().tickets.get(ticketId);
+      if (!t || t.raffleId !== raffleId) return null;
+      t.confirmedAt = confirmedAt;
+      return clone(t);
+    },
+    async releaseIfUnclaimed(raffleId, ticketId, createdBefore) {
+      const s = store();
+      const t = s.tickets.get(ticketId);
+      if (!t || t.raffleId !== raffleId || t.source !== "online" || t.confirmedAt || t.paidAmount > 0 || t.createdAt >= createdBefore) return false;
+      s.tickets.delete(ticketId);
+      return true;
+    },
+    async addEvent(event) {
+      const s = store();
+      s.events.push({ ...clone(event), id: "e" + s.seq++ });
+    },
+    async listEvents(raffleId, limit) {
+      return store()
+        .events.filter((e) => e.raffleId === raffleId)
+        .sort((a, b) => b.at.localeCompare(a.at))
+        .slice(0, limit)
+        .map(clone);
+    },
+    async getSetting<T>(key: string) {
+      const v = store().settings.get(key);
+      return v === undefined ? null : (clone(v) as T);
+    },
+    async setSetting(key, value) {
+      if (value === null) store().settings.delete(key);
+      else store().settings.set(key, clone(value));
+    },
   };
 }
 
@@ -105,7 +140,7 @@ function seedDemoTickets(s: Store, raffleId: string) {
   const picks = [3, 7, 12, 18, 21, 25, 33, 37, 41, 44, 50, 55, 58, 61, 66, 70, 73, 77, 82, 88, 90, 94, 99, 5, 14, 29];
   picks.forEach((number, i) => {
     const paid = i % 5 === 0 ? 0 : i % 3 === 0 ? 10000 : 20000;
-    const at = new Date(Date.UTC(2026, 10, 3 + (i % 20), 15)).toISOString();
+    const at = new Date(Date.now() - ((i % 20) + 1) * 86_400_000).toISOString();
     s.tickets.set("t" + s.seq, {
       id: "t" + s.seq++,
       raffleId,
@@ -114,7 +149,13 @@ function seedDemoTickets(s: Store, raffleId: string) {
       paidAmount: paid,
       paidInFullAt: paid >= 20000 ? at : null,
       payments: paid ? [{ amount: paid, method: "nequi", note: "", at }] : [],
-      createdAt: at,
+      // Los que no han abonado: apartados recientes desde la página, por confirmar.
+      createdAt: paid ? at : new Date(Date.now() - (i + 2) * 3_600_000).toISOString(),
+      source: paid ? "admin" : "online",
+      confirmedAt: paid ? at : null,
     });
+    const t = s.tickets.get("t" + (s.seq - 1))!;
+    s.events.push({ id: "e" + s.seq++, raffleId, at: t.createdAt, type: paid ? "assigned" : "reserved", by: paid ? "admin" : "player", number, name: t.player.name, phone: t.player.phone });
+    if (paid) s.events.push({ id: "e" + s.seq++, raffleId, at, type: "payment", by: "admin", number, name: t.player.name, amount: paid });
   });
 }

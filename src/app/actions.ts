@@ -1,6 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
+import { logEvent, notifyAdmin, reservedMessage } from "@/lib/activity";
+import { cleanPhone, holdHoursOf, isBlocked } from "@/lib/hold";
 import { getRepo } from "@/lib/repo";
 import { colombiaDate, formatNumber } from "@/lib/raffle";
 
@@ -9,9 +12,7 @@ export interface Result {
   message: string;
 }
 
-const cleanPhone = (s: string) => s.replace(/\D/g, "").replace(/^57(?=\d{10}$)/, "");
-
-export async function reserveNumber(input: { slug: string; number: number; name: string; phone: string }): Promise<Result & { label?: string }> {
+export async function reserveNumber(input: { slug: string; number: number; name: string; phone: string }): Promise<Result & { label?: string; holdHours?: number }> {
   const name = input.name.trim().replace(/\s+/g, " ").slice(0, 60);
   const phone = cleanPhone(input.phone);
   if (name.length < 2) return { ok: false, message: "Escribe tu nombre." };
@@ -23,14 +24,23 @@ export async function reserveNumber(input: { slug: string; number: number; name:
   if (colombiaDate(new Date().toISOString()) > raffle.paymentDeadline) return { ok: false, message: "Ya cerró la venta de números." };
   if (!Number.isInteger(input.number) || input.number < 0 || input.number >= raffle.numberCount) return { ok: false, message: "Número inválido." };
 
+  // Mensaje neutro: no le decimos a quien sabotea que está bloqueado.
+  if (isBlocked(raffle, phone)) return { ok: false, message: "No pudimos apartar el número. Escríbele a quien organiza la rifa." };
+
   const unpaid = (await repo.findTicketsByPhone(raffle.id, phone)).filter((t) => t.paidAmount === 0);
   if (unpaid.length >= 5)
     return { ok: false, message: "Ya tienes 5 números apartados sin abono. Abona alguno para apartar más." };
 
-  const ticket = await repo.reserveTicket(raffle.id, input.number, { name, phone });
+  const ticket = await repo.reserveTicket(raffle.id, input.number, { name, phone }, { source: "online" });
   if (!ticket) return { ok: false, message: "Alguien lo apartó hace un momento. Elige otro." };
+  const hold = holdHoursOf(raffle);
+  await logEvent(repo, { raffleId: raffle.id, type: "reserved", by: "player", number: input.number, name, phone });
+  const h = await headers();
+  const panelUrl = `${h.get("x-forwarded-proto") ?? "https"}://${h.get("x-forwarded-host") ?? h.get("host")}/admin/rifas/${raffle.id}#numeros`;
+  await notifyAdmin(repo, reservedMessage(raffle, input.number, name, phone, hold, panelUrl));
   revalidatePath(`/rifa/${raffle.slug}`);
-  return { ok: true, message: "¡Número apartado!", label: formatNumber(input.number, raffle.numberCount) };
+  revalidatePath(`/admin/rifas/${raffle.id}`);
+  return { ok: true, message: "¡Número apartado!", label: formatNumber(input.number, raffle.numberCount), holdHours: hold };
 }
 
 export interface MyTicket {

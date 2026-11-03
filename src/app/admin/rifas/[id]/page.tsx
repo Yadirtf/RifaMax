@@ -5,7 +5,7 @@ import AdminShell from "@/components/admin/AdminShell";
 import { requireAdmin } from "@/lib/auth";
 import { getBundle } from "@/lib/data";
 import { getRepo } from "@/lib/repo";
-import { readChats, TELEGRAM_SETTING, telegramToken } from "@/lib/telegram";
+import { freshInvites, readChats, TELEGRAM_PENDING, TELEGRAM_SETTING, telegramToken } from "@/lib/telegram";
 import { canSchedule, DRAND_SIMULATED, rouletteCandidates } from "@/lib/draws";
 import { LOTTERIES } from "@/lib/lotteries";
 import { getTheme } from "@/lib/themes";
@@ -21,9 +21,10 @@ export default async function AdminRafflePage({ params }: { params: Promise<{ id
   const origin = `${h.get("x-forwarded-proto") ?? "http"}://${h.get("host")}`;
   const theme = getTheme(b.raffle.theme);
   const repo = getRepo();
-  const [events, chat] = await Promise.all([
+  const [events, chat, invites] = await Promise.all([
     repo.listEvents(b.raffle.id, 60).catch(() => []),
     repo.getSetting<unknown>(TELEGRAM_SETTING).catch(() => null),
+    repo.getSetting<unknown>(TELEGRAM_PENDING).catch(() => null),
   ]);
 
   return (
@@ -46,7 +47,7 @@ export default async function AdminRafflePage({ params }: { params: Promise<{ id
         )}
         simulated={DRAND_SIMULATED}
         events={events}
-        telegram={{ configured: !!telegramToken(), chats: readChats(chat) }}
+        telegram={{ configured: !!telegramToken(), chats: readChats(chat), pending: freshInvites(invites).length }}
       />
     </AdminShell>
   );

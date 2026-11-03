@@ -65,9 +65,31 @@ export function findStartChat(updates: Update[], code: string): TelegramChat | n
   return null;
 }
 
-export async function findChatByCode(code: string, fetcher?: typeof fetch): Promise<TelegramChat | null> {
-  const updates = await call<Update[]>("getUpdates", { allowed_updates: ["message"], limit: 100 }, fetcher);
-  return findStartChat(updates, code);
+/** Busca, entre los últimos mensajes al bot, a quienes tocaron Iniciar con alguno de los códigos. */
+export async function findChatsByCodes(codes: string[], fetcher?: typeof fetch): Promise<{ code: string; chat: TelegramChat }[]> {
+  if (!codes.length) return [];
+  // offset -100: los 100 mensajes más recientes (sin offset, Telegram devuelve los más viejos).
+  const updates = await call<Update[]>("getUpdates", { allowed_updates: ["message"], limit: 100, offset: -100 }, fetcher);
+  return codes.flatMap((code) => {
+    const chat = findStartChat(updates, code);
+    return chat ? [{ code, chat }] : [];
+  });
+}
+
+/** Invitaciones generadas que aún no se completan. Se guardan para no perderlas si se recarga el panel. */
+export interface PendingInvite {
+  code: string;
+  at: string;
+}
+export const TELEGRAM_PENDING = "telegram_pending";
+const INVITE_TTL_MS = 48 * 3_600_000;
+
+export function freshInvites(v: unknown, now = Date.now()): PendingInvite[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .filter((i): i is PendingInvite => !!i && typeof i.code === "string" && typeof i.at === "string")
+    .filter((i) => now - new Date(i.at).getTime() < INVITE_TTL_MS)
+    .slice(-10);
 }
 
 /** Envía un mensaje. Nunca lanza: un aviso fallido no debe dañar el apartado del jugador. */

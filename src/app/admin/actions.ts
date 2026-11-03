@@ -6,7 +6,7 @@ import { randomBytes } from "node:crypto";
 import { logEvent } from "@/lib/activity";
 import { checkPassword, endSession, requireAdmin, startSession } from "@/lib/auth";
 import { cleanPhone } from "@/lib/hold";
-import { addChat, botUsername, findChatByCode, MAX_TELEGRAM_CHATS, readChats, sendTelegram, TELEGRAM_SETTING, telegramToken, type TelegramChat } from "@/lib/telegram";
+import { addChat, botUsername, findChatsByCodes, freshInvites, MAX_TELEGRAM_CHATS, readChats, sendTelegram, TELEGRAM_PENDING, TELEGRAM_SETTING, telegramToken, type TelegramChat } from "@/lib/telegram";
 import { getBundle, type RaffleBundle } from "@/lib/data";
 import { applyLottery, applyReverse, resetDraw, scheduleRoulette } from "@/lib/draws";
 import { fetchOfficialResult, LOTTERIES, lotteryInfo, type OfficialResult } from "@/lib/lotteries";
@@ -151,14 +151,17 @@ export async function unblockPhone(input: { raffleId: string; phone: string }) {
 export interface TelegramStatus {
   configured: boolean;
   chats: TelegramChat[];
+  pending: number;
 }
 
 const loadChats = async () => readChats(await getRepo().getSetting<unknown>(TELEGRAM_SETTING).catch(() => null));
 
 export async function telegramStatus(): Promise<TelegramStatus> {
   await requireAdmin();
-  return { configured: !!telegramToken(), chats: await loadChats() };
+  return { configured: !!telegramToken(), chats: await loadChats(), pending: (await loadInvites()).length };
 }
+
+const loadInvites = async () => freshInvites(await getRepo().getSetting<unknown>(TELEGRAM_PENDING).catch(() => null));
 
 /** Paso 1: enlace al bot con un código de un solo uso. Sirve para ti o para enviárselo a otra persona. */
 export async function telegramConnectStart(): Promise<Result & { link?: string; code?: string }> {
@@ -167,26 +170,41 @@ export async function telegramConnectStart(): Promise<Result & { link?: string; 
     if ((await loadChats()).length >= MAX_TELEGRAM_CHATS) return fail(`Ya hay ${MAX_TELEGRAM_CHATS} personas conectadas. Quita una para agregar otra.`);
     const code = randomBytes(6).toString("hex");
     const user = await botUsername();
+    // Se guarda en la base: si recargas el panel o cierras el aviso, la invitación sigue sirviendo.
+    await getRepo().setSetting(TELEGRAM_PENDING, freshInvites([...(await loadInvites()), { code, at: new Date().toISOString() }]));
     return { ok: true, message: "", link: `https://t.me/${user}?start=${code}`, code };
   } catch (e) {
     return fail(errMsg(e));
   }
 }
 
-/** Paso 2: después de tocar "Iniciar" en Telegram, se busca el chat que envió el código. */
-export async function telegramConnectFinish(input: { code: string }): Promise<Result> {
+/**
+ * Paso 2: busca a quienes ya tocaron "Iniciar" con cualquier invitación pendiente y los agrega.
+ * `quiet` sirve para la revisión automática: no se queja si aún no hay nadie.
+ */
+export async function telegramConnectFinish(input?: { quiet?: boolean }): Promise<Result & { added?: number }> {
   await requireAdmin();
   try {
-    if (!/^[0-9a-f]{12}$/.test(input.code)) return fail("Código inválido. Empieza de nuevo.");
-    const chat = await findChatByCode(input.code);
-    if (!chat) return fail("Aún no vemos el mensaje. En Telegram toca Iniciar y vuelve a intentarlo.");
-    const chats = await loadChats();
-    if (!chats.some((c) => c.chatId === chat.chatId) && chats.length >= MAX_TELEGRAM_CHATS) return fail(`Ya hay ${MAX_TELEGRAM_CHATS} personas conectadas.`);
-    await getRepo().setSetting(TELEGRAM_SETTING, addChat(chats, chat));
-    await sendTelegram(chat.chatId, "✅ Listo. Aquí te avisaremos cuando alguien aparte un número.");
-    return { ok: true, message: `Conectado con ${chat.name}.` };
+    const invites = await loadInvites();
+    if (!invites.length) return input?.quiet ? { ok: false, message: "" } : fail("No hay invitaciones pendientes. Toca «Agregar» para crear una.");
+    const found = await findChatsByCodes(invites.map((i) => i.code));
+    if (!found.length) return input?.quiet ? { ok: false, message: "" } : fail("Aún no vemos el mensaje. En Telegram debe tocar Iniciar (o enviar el enlace otra vez) y vuelve a intentarlo.");
+    let chats = await loadChats();
+    const added: TelegramChat[] = [];
+    for (const { chat } of found) {
+      const isNew = !chats.some((c) => c.chatId === chat.chatId);
+      if (isNew && chats.length >= MAX_TELEGRAM_CHATS) continue;
+      chats = addChat(chats, chat);
+      if (isNew) added.push(chat);
+    }
+    const used = new Set(found.map((f) => f.code));
+    await getRepo().setSetting(TELEGRAM_SETTING, chats);
+    await getRepo().setSetting(TELEGRAM_PENDING, invites.filter((i) => !used.has(i.code)));
+    await Promise.all(added.map((c) => sendTelegram(c.chatId, "✅ Listo. Aquí te avisaremos cuando alguien aparte un número.")));
+    const names = (added.length ? added : found.map((f) => f.chat)).map((c) => c.name).join(", ");
+    return { ok: true, message: added.length ? `Conectado con ${names}.` : `${names} ya estaba conectado.`, added: added.length };
   } catch (e) {
-    return fail(errMsg(e));
+    return input?.quiet ? { ok: false, message: "" } : fail(errMsg(e));
   }
 }
 
